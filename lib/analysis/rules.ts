@@ -1,0 +1,424 @@
+import type { Category, Diagnostic, Severity } from "../../types/analysis";
+
+interface RuleMatch {
+  evidence: string[];
+  startIndex?: number;
+  endIndex?: number;
+}
+
+interface DiagnosticSeed {
+  ruleId: string;
+  title: string;
+  severity: Severity;
+  category: Category;
+  message: string;
+  evidence: string[];
+  suggestion: string;
+  startIndex?: number;
+  endIndex?: number;
+}
+
+const ACTION_VERBS = [
+  "analyze",
+  "compare",
+  "create",
+  "draft",
+  "extract",
+  "generate",
+  "identify",
+  "list",
+  "rewrite",
+  "summarize",
+  "write",
+  "classify",
+  "review",
+  "explain",
+  "convert",
+  "build",
+  "produce",
+];
+
+const OUTPUT_FORMAT_TERMS = [
+  "json",
+  "table",
+  "bullet",
+  "bullets",
+  "numbered list",
+  "markdown",
+  "csv",
+  "yaml",
+  "xml",
+  "paragraph",
+  "sections",
+  "format",
+  "schema",
+  "checklist",
+];
+
+const VAGUE_PATTERNS = [
+  /\bbe helpful\b/gi,
+  /\bdo your best\b/gi,
+  /\btry to\b/gi,
+  /\bif possible\b/gi,
+  /\bas needed\b/gi,
+  /\bfeel free to\b/gi,
+  /\bmaybe\b/gi,
+];
+
+const INJECTION_PATTERNS = [
+  /\bignore (?:all )?(?:previous|prior|above) instructions\b/gi,
+  /\bdisregard (?:the )?(?:above|previous|prior)\b/gi,
+  /\boverride (?:the )?system\b/gi,
+  /\bforget everything\b/gi,
+  /\bnew instructions\b/gi,
+  /\bdeveloper mode\b/gi,
+  /\bjailbreak\b/gi,
+];
+
+const SECRET_REQUEST_PATTERNS = [
+  /\bsystem prompt\b/gi,
+  /\bapi keys?\b/gi,
+  /\baccess tokens?\b/gi,
+  /\bpasswords?\b/gi,
+  /\bcredentials?\b/gi,
+  /\b\.env\b/gi,
+  /\bprivate keys?\b/gi,
+  /\bsecrets?\b/gi,
+];
+
+const SENSITIVE_PATTERNS = [
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+  /\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}\b/g,
+  /\b\d{3}-\d{2}-\d{4}\b/g,
+  /\bsk-[A-Za-z0-9._-]{6,}\b/g,
+  /\b(?:ghp|gho|github_pat|xoxb|xoxp|xoxa|xoxr)-[A-Za-z0-9._-]{8,}\b/g,
+  /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
+];
+
+const PLACEHOLDER_PATTERN =
+  /(\{\{\s*(?:user_)?input\s*\}\}|\{(?:query|message|input|content|user_input)\}|\$\{(?:message|query|input|content|user_input)\})/gi;
+
+function collectMatches(input: string, patterns: RegExp[], limit = 5): RuleMatch {
+  const evidence: string[] = [];
+  let startIndex: number | undefined;
+  let endIndex: number | undefined;
+
+  for (const pattern of patterns) {
+    const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+    const regex = new RegExp(pattern.source, flags);
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(input)) && evidence.length < limit) {
+      const value = match[0].trim();
+
+      if (!evidence.includes(value)) {
+        evidence.push(value);
+      }
+
+      if (startIndex === undefined) {
+        startIndex = match.index;
+        endIndex = match.index + match[0].length;
+      }
+    }
+  }
+
+  return { evidence, startIndex, endIndex };
+}
+
+function createDiagnostic(seed: DiagnosticSeed, index: number): Diagnostic {
+  return {
+    id: `${seed.ruleId}-${index}`,
+    ruleId: seed.ruleId,
+    title: seed.title,
+    severity: seed.severity,
+    category: seed.category,
+    message: seed.message,
+    evidence: seed.evidence,
+    suggestion: seed.suggestion,
+    startIndex: seed.startIndex,
+    endIndex: seed.endIndex,
+  };
+}
+
+function hasActionVerb(input: string): boolean {
+  const lower = input.toLowerCase();
+  return ACTION_VERBS.some((verb) => new RegExp(`\\b${verb}\\b`).test(lower));
+}
+
+function asksForGeneration(input: string): boolean {
+  return /\b(?:generate|write|create|summarize|extract|draft|produce|list|convert|rewrite|analyze)\b/i.test(
+    input,
+  );
+}
+
+function hasOutputFormat(input: string): boolean {
+  const lower = input.toLowerCase();
+  return OUTPUT_FORMAT_TERMS.some((term) => lower.includes(term));
+}
+
+function wordCount(input: string): number {
+  return input.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function findContradictions(input: string): RuleMatch {
+  const evidence: string[] = [];
+  const lower = input.toLowerCase();
+  let startIndex: number | undefined;
+  let endIndex: number | undefined;
+
+  const pairs: Array<[RegExp, RegExp, string]> = [
+    [/\bconcise(?:ly)?\b/i, /\b(?:very detailed|detailed|comprehensive|exhaustive)\b/i, "concise + detailed"],
+    [/\balways\b/i, /\bnever\b/i, "always + never"],
+    [/\bjson\b/i, /\b(?:paragraph only|single paragraph|no bullets)\b/i, "JSON + paragraph-only"],
+  ];
+
+  for (const [left, right, label] of pairs) {
+    if (left.test(input) && right.test(input)) {
+      evidence.push(label);
+      const leftIndex = lower.search(left);
+      const rightIndex = lower.search(right);
+      const first = Math.min(leftIndex, rightIndex);
+      const last = Math.max(leftIndex, rightIndex);
+
+      if (startIndex === undefined && first >= 0) {
+        startIndex = first;
+        endIndex = last + 12;
+      }
+    }
+  }
+
+  return { evidence, startIndex, endIndex };
+}
+
+function findObfuscatedAttacks(input: string): RuleMatch {
+  const patterns = [
+    /i\s+g\s+n\s+o\s+r\s+e\s+(?:all\s+)?previous\s+instructions/gi,
+    /ignore[-_\s]*all[-_\s]*previous[-_\s]*instructions/gi,
+    /d\s+i\s+s\s+r\s+e\s+g\s+a\s+r\s+d\s+(?:the\s+)?above/gi,
+  ];
+
+  return collectMatches(input, patterns);
+}
+
+function findUndelimitedPlaceholders(input: string): RuleMatch {
+  const evidence: string[] = [];
+  let startIndex: number | undefined;
+  let endIndex: number | undefined;
+  const regex = new RegExp(PLACEHOLDER_PATTERN.source, "gi");
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(input))) {
+    const before = input.slice(Math.max(0, match.index - 40), match.index).toLowerCase();
+    const after = input.slice(match.index + match[0].length, match.index + match[0].length + 40).toLowerCase();
+    const stronglyDelimited =
+      before.includes("<user_input>") ||
+      after.includes("</user_input>") ||
+      before.includes("```") ||
+      after.includes("```") ||
+      before.includes("treat content inside");
+
+    if (!stronglyDelimited) {
+      evidence.push(match[0]);
+      startIndex ??= match.index;
+      endIndex ??= match.index + match[0].length;
+    }
+  }
+
+  return { evidence: [...new Set(evidence)].slice(0, 5), startIndex, endIndex };
+}
+
+function findRepeatedInstructions(input: string): RuleMatch {
+  const chunks = input
+    .split(/[\n.;]+/)
+    .map((chunk) => chunk.trim().toLowerCase().replace(/[^a-z0-9 ]/g, ""))
+    .filter((chunk) => chunk.length > 8);
+  const seen = new Set<string>();
+  const repeated: string[] = [];
+
+  for (const chunk of chunks) {
+    if (seen.has(chunk) && !repeated.includes(chunk)) {
+      repeated.push(chunk);
+    }
+
+    seen.add(chunk);
+  }
+
+  return { evidence: repeated.slice(0, 3) };
+}
+
+export function runRules(input: string): Diagnostic[] {
+  const trimmed = input.trim();
+  const diagnostics: DiagnosticSeed[] = [];
+
+  if (!trimmed) {
+    return [];
+  }
+
+  const vague = collectMatches(trimmed, VAGUE_PATTERNS);
+  if (vague.evidence.length) {
+    diagnostics.push({
+      ruleId: "vague-instruction",
+      title: "Vague instruction",
+      severity: "warning",
+      category: "clarity",
+      message: "Vague phrasing gives the model too much room to guess what a good answer looks like.",
+      evidence: vague.evidence,
+      suggestion: "Replace vague phrases with measurable criteria, scope, and desired output details.",
+      startIndex: vague.startIndex,
+      endIndex: vague.endIndex,
+    });
+  }
+
+  if (asksForGeneration(trimmed) && !hasOutputFormat(trimmed)) {
+    diagnostics.push({
+      ruleId: "missing-output-format",
+      title: "Missing output format",
+      severity: "warning",
+      category: "clarity",
+      message: "The prompt asks for generated work but does not say what shape the answer should take.",
+      evidence: [],
+      suggestion: "Specify JSON, bullets, a table, paragraphs, or another concrete format.",
+    });
+  }
+
+  if (!hasActionVerb(trimmed)) {
+    diagnostics.push({
+      ruleId: "missing-task-definition",
+      title: "Missing task definition",
+      severity: "error",
+      category: "clarity",
+      message: "The prompt does not contain a clear action verb or goal.",
+      evidence: [],
+      suggestion: "Start with a direct task such as summarize, extract, compare, rewrite, or analyze.",
+    });
+  }
+
+  const contradictions = findContradictions(trimmed);
+  if (contradictions.evidence.length) {
+    diagnostics.push({
+      ruleId: "contradictory-directives",
+      title: "Contradictory directives",
+      severity: "warning",
+      category: "structure",
+      message: "Conflicting instructions make it harder for the model to decide which constraint wins.",
+      evidence: contradictions.evidence,
+      suggestion: "Choose one priority and make tradeoffs explicit.",
+      startIndex: contradictions.startIndex,
+      endIndex: contradictions.endIndex,
+    });
+  }
+
+  const injection = collectMatches(trimmed, INJECTION_PATTERNS);
+  if (injection.evidence.length) {
+    diagnostics.push({
+      ruleId: "prompt-injection-risk",
+      title: "Prompt injection risk",
+      severity: "critical",
+      category: "security",
+      message: "The prompt contains language commonly used to override higher-priority instructions.",
+      evidence: injection.evidence,
+      suggestion: "Remove override language and treat untrusted content as data, not instructions.",
+      startIndex: injection.startIndex,
+      endIndex: injection.endIndex,
+    });
+  }
+
+  const secretRequest = collectMatches(trimmed, SECRET_REQUEST_PATTERNS);
+  if (secretRequest.evidence.length) {
+    diagnostics.push({
+      ruleId: "secret-exfiltration-risk",
+      title: "Secret exfiltration risk",
+      severity: "critical",
+      category: "security",
+      message: "The prompt asks for sensitive hidden data or credentials that should not be disclosed.",
+      evidence: secretRequest.evidence,
+      suggestion: "Ask for a safe explanation or troubleshooting guidance instead of secrets.",
+      startIndex: secretRequest.startIndex,
+      endIndex: secretRequest.endIndex,
+    });
+  }
+
+  const placeholders = findUndelimitedPlaceholders(trimmed);
+  if (placeholders.evidence.length) {
+    diagnostics.push({
+      ruleId: "undelimited-user-input",
+      title: "Undelimited user input",
+      severity: "error",
+      category: "security",
+      message: "Dynamic user content is inserted without clear boundaries, which can invite instruction mixing.",
+      evidence: placeholders.evidence,
+      suggestion: "Wrap dynamic content in XML tags, code fences, or a quoted block with explicit boundaries.",
+      startIndex: placeholders.startIndex,
+      endIndex: placeholders.endIndex,
+    });
+  }
+
+  const obfuscated = findObfuscatedAttacks(trimmed);
+  if (obfuscated.evidence.length) {
+    diagnostics.push({
+      ruleId: "obfuscated-attack-pattern",
+      title: "Obfuscated attack pattern",
+      severity: "critical",
+      category: "security",
+      message: "The prompt includes lightly obfuscated instruction-override language.",
+      evidence: obfuscated.evidence,
+      suggestion: "Remove obfuscated override text and add a clear instruction hierarchy.",
+      startIndex: obfuscated.startIndex,
+      endIndex: obfuscated.endIndex,
+    });
+  }
+
+  const sensitive = collectMatches(trimmed, SENSITIVE_PATTERNS);
+  if (sensitive.evidence.length) {
+    diagnostics.push({
+      ruleId: "sensitive-data-leak",
+      title: "Sensitive data in prompt",
+      severity: "error",
+      category: "privacy",
+      message: "The prompt appears to include private or credential-like data.",
+      evidence: sensitive.evidence,
+      suggestion: "Redact or replace sensitive values with placeholders before sending the prompt.",
+      startIndex: sensitive.startIndex,
+      endIndex: sensitive.endIndex,
+    });
+  }
+
+  if (trimmed.length > 1200 || wordCount(trimmed) > 220) {
+    diagnostics.push({
+      ruleId: "excessive-length",
+      title: "Prompt may be too long",
+      severity: "warning",
+      category: "efficiency",
+      message: "Long prompts are harder to inspect and can bury the actual task.",
+      evidence: [`${wordCount(trimmed)} words`],
+      suggestion: "Split the prompt into task, context, constraints, and output format sections.",
+    });
+  }
+
+  const repeated = findRepeatedInstructions(trimmed);
+  if (repeated.evidence.length) {
+    diagnostics.push({
+      ruleId: "repeated-instructions",
+      title: "Repeated instruction",
+      severity: "info",
+      category: "efficiency",
+      message: "Duplicated instructions add noise without improving model reliability.",
+      evidence: repeated.evidence,
+      suggestion: "Keep one canonical version of each instruction or constraint.",
+    });
+  }
+
+  if (wordCount(trimmed) > 90 && !/\b(?:example|examples|for instance|e\.g\.)\b/i.test(trimmed)) {
+    diagnostics.push({
+      ruleId: "missing-examples-for-complex-task",
+      title: "Complex task lacks examples",
+      severity: "info",
+      category: "structure",
+      message: "A complex prompt can be easier to follow with one concrete example.",
+      evidence: [],
+      suggestion: "Add a short input-output example that shows the expected style or edge case.",
+    });
+  }
+
+  return diagnostics.map(createDiagnostic);
+}
