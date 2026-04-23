@@ -2,18 +2,24 @@
 
 import {
   AlertTriangle,
+  Braces,
   CheckCircle2,
+  Clock,
   Clipboard,
   Code2,
   Copy,
   FileJson2,
+  Fingerprint,
+  MapPin,
   Moon,
   RefreshCw,
+  ScanLine,
   ShieldCheck,
   Sparkles,
   Sun,
   Wand2,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { analyzePrompt } from "../lib/analysis";
@@ -26,6 +32,7 @@ import type {
   Category,
   DemoExample,
   Diagnostic,
+  RiskLevel,
   Severity,
 } from "../types/analysis";
 import { Badge } from "./ui/badge";
@@ -74,6 +81,27 @@ const initialOptions: AnalysisOptions = {
   securityStrictness: 3,
 };
 
+const riskMeta: Record<RiskLevel, { label: string; className: string; description: string }> = {
+  ready: {
+    label: "Ready",
+    className:
+      "border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900 dark:bg-teal-950/50 dark:text-teal-200",
+    description: "No blocking issues found.",
+  },
+  "needs-edits": {
+    label: "Needs edits",
+    className:
+      "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200",
+    description: "Useful prompt, but the rewrite is safer.",
+  },
+  "high-risk": {
+    label: "High risk",
+    className:
+      "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-200",
+    description: "Review before sending this to a model.",
+  },
+};
+
 function scoreTone(score: number) {
   if (score >= 85) return "text-teal-600 dark:text-teal-300";
   if (score >= 65) return "text-amber-600 dark:text-amber-300";
@@ -86,11 +114,126 @@ function scoreBar(score: number) {
   return "bg-rose-500";
 }
 
+function formatLocation(diagnostic: Diagnostic) {
+  if (!diagnostic.location) return null;
+  return `L${diagnostic.location.startLine}:C${diagnostic.location.startColumn}`;
+}
+
+function sourceLabel(diagnostic: Diagnostic) {
+  if (diagnostic.source === "decoded") return "Decoded";
+  if (diagnostic.source === "normalized") return "Normalized";
+  return "Original";
+}
+
 function groupDiagnostics(diagnostics: Diagnostic[]) {
   return severityOrder.map((severity) => ({
     severity,
     diagnostics: diagnostics.filter((diagnostic) => diagnostic.severity === severity),
   }));
+}
+
+function ScanSnapshot({ report }: { report: AnalysisReport }) {
+  const metadata = report.metadata;
+  const risk = riskMeta[metadata.riskLevel];
+  const items = [
+    {
+      label: "Scan time",
+      value: `${metadata.durationMs}ms`,
+      icon: <Clock className="h-4 w-4" />,
+    },
+    {
+      label: "Prompt size",
+      value: `${metadata.estimatedTokens} tokens`,
+      icon: <ScanLine className="h-4 w-4" />,
+    },
+    {
+      label: "Format",
+      value: metadata.inputFormat === "message-array" ? "Message JSON" : "Plain text",
+      icon: <Code2 className="h-4 w-4" />,
+    },
+    {
+      label: "Variables",
+      value: `${metadata.variableCount}`,
+      icon: <Braces className="h-4 w-4" />,
+    },
+    {
+      label: "Fingerprint",
+      value: metadata.fingerprint,
+      icon: <Fingerprint className="h-4 w-4" />,
+    },
+  ];
+
+  return (
+    <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-950 dark:text-white">Scan snapshot</h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{risk.description}</p>
+        </div>
+        <span className={cn("inline-flex items-center rounded-md border px-2.5 py-1 text-sm font-semibold", risk.className)}>
+          {risk.label}
+        </span>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        {items.map((item) => (
+          <div
+            key={item.label}
+            className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/70"
+          >
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+              {item.icon}
+              {item.label}
+            </div>
+            <div className="mt-1 truncate text-sm font-semibold text-slate-950 dark:text-white">{item.value}</div>
+          </div>
+        ))}
+      </div>
+      {metadata.normalized || metadata.decodedVariantCount > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          {metadata.normalized ? <Badge tone="amber">Normalized scan surface</Badge> : null}
+          {metadata.decodedEncodings.map((encoding) => (
+            <Badge key={encoding} tone="blue">
+              Decoded {encoding}
+            </Badge>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function EvidenceSummary({ report }: { report: AnalysisReport }) {
+  const evidence = report.diagnostics
+    .flatMap((diagnostic) =>
+      diagnostic.evidence.slice(0, 2).map((item) => ({
+        item,
+        diagnostic,
+      })),
+    )
+    .slice(0, 6);
+
+  if (!evidence.length) return null;
+
+  return (
+    <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/70">
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <MapPin className="h-3.5 w-3.5" />
+        Flagged evidence
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {evidence.map(({ item, diagnostic }) => (
+          <span
+            key={`${diagnostic.id}-${item}`}
+            className="inline-flex max-w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"
+            title={diagnostic.title}
+          >
+            <span className="max-w-48 truncate font-mono">{item}</span>
+            <span className="text-slate-400">{formatLocation(diagnostic) ?? sourceLabel(diagnostic)}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function getStoredState() {
@@ -162,7 +305,7 @@ function SliderControl({
         max={5}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-teal-600 dark:bg-slate-800"
+        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-slate-950 dark:bg-slate-800 dark:accent-white"
       />
     </label>
   );
@@ -171,7 +314,7 @@ function SliderControl({
 function EmptyReport() {
   return (
     <div className="flex min-h-[560px] flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-white/70 px-8 text-center dark:border-slate-800 dark:bg-slate-950/50">
-      <div className="flex h-14 w-14 items-center justify-center rounded-md bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-200">
+      <div className="flex h-14 w-14 items-center justify-center rounded-md bg-slate-100 text-slate-950 dark:bg-slate-900 dark:text-white">
         <ShieldCheck className="h-7 w-7" />
       </div>
       <h2 className="mt-5 text-xl font-semibold text-slate-950 dark:text-white">Ready to scan</h2>
@@ -216,6 +359,10 @@ function DiagnosticList({ report }: { report: AnalysisReport }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-sm font-semibold text-slate-950 dark:text-white">{diagnostic.title}</h3>
                   <Badge tone="neutral">{categoryLabels[diagnostic.category]}</Badge>
+                  <Badge tone={diagnostic.source === "decoded" ? "blue" : diagnostic.source === "normalized" ? "amber" : "neutral"}>
+                    {sourceLabel(diagnostic)}
+                  </Badge>
+                  {formatLocation(diagnostic) ? <Badge tone="neutral">{formatLocation(diagnostic)}</Badge> : null}
                 </div>
                 <p className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-300">{diagnostic.message}</p>
                 {diagnostic.evidence.length > 0 ? (
@@ -352,11 +499,33 @@ export function PromptGuardApp() {
   const [aiBusy, setAiBusy] = useState(false);
 
   useEffect(() => {
-    const stored = getStoredState();
-
-    if (!stored) return;
-
     const frame = window.requestAnimationFrame(() => {
+      const demoId = new URLSearchParams(window.location.search).get("demo");
+      const demo = demoExamples.find((example) => example.id === demoId);
+
+      if (demo) {
+        const nextMode = demo.mode ?? "plain";
+        const prepared = normalizePromptInput(demo.prompt, nextMode);
+
+        setPrompt(demo.prompt);
+        setMode(nextMode);
+        setOptions(initialOptions);
+        setDark(false);
+
+        if (prepared.ok) {
+          setInputError("");
+          setReport(analyzePrompt(prepared.text, initialOptions, prepared.format));
+          setCompareMode("rewritten");
+          setAiStatus("");
+        }
+
+        return;
+      }
+
+      const stored = getStoredState();
+
+      if (!stored) return;
+
       if (stored.prompt) setPrompt(stored.prompt);
       if (stored.mode) setMode(stored.mode);
       if (stored.options) setOptions(stored.options);
@@ -391,7 +560,7 @@ export function PromptGuardApp() {
     }
 
     setInputError("");
-    setReport(analyzePrompt(prepared.text, options));
+    setReport(analyzePrompt(prepared.text, options, prepared.format));
     setCompareMode("rewritten");
     setAiStatus("");
   }
@@ -406,7 +575,7 @@ export function PromptGuardApp() {
 
       if (prepared.ok) {
         setInputError("");
-        setReport(analyzePrompt(prepared.text, options));
+        setReport(analyzePrompt(prepared.text, options, prepared.format));
         setCompareMode("rewritten");
         setAiStatus("");
       }
@@ -418,7 +587,7 @@ export function PromptGuardApp() {
     setOptions(nextOptions);
 
     if (report && normalized.ok) {
-      setReport(analyzePrompt(normalized.text, nextOptions));
+      setReport(analyzePrompt(normalized.text, nextOptions, normalized.format));
     }
   }
 
@@ -475,7 +644,7 @@ export function PromptGuardApp() {
 
   return (
     <div className={cn(dark && "dark")}>
-      <main className="min-h-screen bg-[#f7f8fb] text-slate-950 dark:bg-[#07090d] dark:text-white">
+      <main className="min-h-screen bg-[#f6f6f4] text-slate-950 dark:bg-[#07090d] dark:text-white">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 py-6 sm:px-8 lg:px-10">
           <header className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -483,12 +652,19 @@ export function PromptGuardApp() {
                 <ShieldCheck className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm font-medium text-teal-700 dark:text-teal-300">Codex Creator Challenge MVP</p>
-                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">PromptGuard</h1>
+                <h1 className="text-2xl font-semibold sm:text-3xl">PromptGuard</h1>
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Prompt safety scanner</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Badge tone="teal">Deterministic core</Badge>
+              <Link
+                href="/"
+                className="hidden rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900 sm:inline-flex"
+              >
+                Overview
+              </Link>
+              <Badge tone="neutral">Live scanner</Badge>
+              <Badge tone="neutral">Deterministic core</Badge>
               <Button size="icon" variant="ghost" aria-label="Toggle dark mode" onClick={() => setDark((value) => !value)}>
                 {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
@@ -498,11 +674,12 @@ export function PromptGuardApp() {
           <section className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)]">
             <div className="space-y-5">
               <div>
-                <h2 className="max-w-3xl text-4xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-5xl">
+                <h2 className="max-w-3xl text-4xl font-semibold text-slate-950 dark:text-white sm:text-5xl">
                   Catch vague, unsafe, and privacy-risky prompts before they reach an AI model.
                 </h2>
                 <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">
-                  PromptGuard is spellcheck plus safety scanner for prompts: paste, analyze, fix, and copy a safer version.
+                  PromptGuard is a focused prompt spellcheck and safety scanner: paste a prompt, get structured diagnostics,
+                  then copy a safer rewrite.
                 </p>
               </div>
 
@@ -556,13 +733,15 @@ export function PromptGuardApp() {
                   </p>
                 ) : null}
 
+                {report ? <EvidenceSummary report={report} /> : null}
+
                 <div className="mt-4 flex flex-wrap gap-2">
                   {demoExamples.map((example) => (
                     <button
                       key={example.id}
                       type="button"
                       onClick={() => loadExample(example)}
-                      className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-medium text-slate-700 transition hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-teal-800 dark:hover:bg-teal-950/40 dark:hover:text-teal-200"
+                      className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-white hover:text-slate-950 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-950 dark:hover:text-white"
                       title={example.description}
                     >
                       {example.label}
@@ -597,7 +776,7 @@ export function PromptGuardApp() {
                     <Sparkles className="h-4 w-4" />
                     Load demo example
                   </Button>
-                  {copyStatus ? <span className="text-sm text-teal-700 dark:text-teal-300">{copyStatus}</span> : null}
+                  {copyStatus ? <span className="text-sm text-slate-600 dark:text-slate-300">{copyStatus}</span> : null}
                 </div>
               </section>
             </div>
@@ -610,6 +789,8 @@ export function PromptGuardApp() {
                       <ScoreCard key={card.label} {...card} />
                     ))}
                   </div>
+
+                  <ScanSnapshot report={report} />
 
                   <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
                     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">

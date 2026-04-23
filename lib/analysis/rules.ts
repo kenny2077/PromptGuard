@@ -1,4 +1,13 @@
-import type { Category, Diagnostic, Severity } from "../../types/analysis";
+import type {
+  Category,
+  Diagnostic,
+  DiagnosticSource,
+  PromptDocument,
+  Severity,
+} from "../../types/analysis";
+import type { DecodedVariant } from "./decoder";
+import type { NormalizationResult } from "./normalize";
+import { locationFromOffset, parsePrompt } from "./parser";
 
 interface RuleMatch {
   evidence: string[];
@@ -16,6 +25,12 @@ interface DiagnosticSeed {
   suggestion: string;
   startIndex?: number;
   endIndex?: number;
+  source?: DiagnosticSource;
+}
+
+export interface RuleScanContext {
+  normalized: NormalizationResult;
+  decodedVariants: DecodedVariant[];
 }
 
 const ACTION_VERBS = [
@@ -75,15 +90,18 @@ const INJECTION_PATTERNS = [
   /\bjailbreak\b/gi,
 ];
 
+const SECRET_TARGET =
+  "(?:system prompt|api[_ -]?keys?|access tokens?|passwords?|credentials?|\\.env|private keys?|secrets?)";
+
 const SECRET_REQUEST_PATTERNS = [
-  /\bsystem prompt\b/gi,
-  /\bapi keys?\b/gi,
-  /\baccess tokens?\b/gi,
-  /\bpasswords?\b/gi,
-  /\bcredentials?\b/gi,
-  /\b\.env\b/gi,
-  /\bprivate keys?\b/gi,
-  /\bsecrets?\b/gi,
+  new RegExp(
+    `\\b(?:show|print|display|output|reveal|give|read|cat|dump|extract|tell me)\\b.{0,50}${SECRET_TARGET}`,
+    "gi",
+  ),
+  new RegExp(
+    `${SECRET_TARGET}.{0,40}\\b(?:show|print|display|output|reveal|give|dump|extract)\\b`,
+    "gi",
+  ),
 ];
 
 const SENSITIVE_PATTERNS = [
@@ -91,7 +109,14 @@ const SENSITIVE_PATTERNS = [
   /\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}\b/g,
   /\b\d{3}-\d{2}-\d{4}\b/g,
   /\bsk-[A-Za-z0-9._-]{6,}\b/g,
+  /\bsk-proj-[A-Za-z0-9_-]{20,}\b/g,
+  /\bAKIA[0-9A-Z]{16}\b/g,
   /\b(?:ghp|gho|github_pat|xoxb|xoxp|xoxa|xoxr)-[A-Za-z0-9._-]{8,}\b/g,
+  /\bgh[pousr]_[A-Za-z0-9_]{20,}\b/g,
+  /\bBearer\s+[A-Za-z0-9\-._~+/]+=*\b/g,
+  /-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/g,
+  /\bhooks\.slack\.com\/services\/[A-Z0-9/]+/g,
+  /\bAIza[0-9A-Za-z\-_]{35}\b/g,
   /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
 ];
 
@@ -125,7 +150,12 @@ function collectMatches(input: string, patterns: RegExp[], limit = 5): RuleMatch
   return { evidence, startIndex, endIndex };
 }
 
-function createDiagnostic(seed: DiagnosticSeed, index: number): Diagnostic {
+function createDiagnostic(seed: DiagnosticSeed, index: number, document: PromptDocument): Diagnostic {
+  const location =
+    seed.source !== "normalized" && seed.source !== "decoded" && seed.startIndex !== undefined && seed.endIndex !== undefined
+      ? locationFromOffset(document.source, seed.startIndex, seed.endIndex)
+      : undefined;
+
   return {
     id: `${seed.ruleId}-${index}`,
     ruleId: seed.ruleId,
@@ -137,6 +167,8 @@ function createDiagnostic(seed: DiagnosticSeed, index: number): Diagnostic {
     suggestion: seed.suggestion,
     startIndex: seed.startIndex,
     endIndex: seed.endIndex,
+    location,
+    source: seed.source ?? "original",
   };
 }
 
@@ -246,15 +278,28 @@ function findRepeatedInstructions(input: string): RuleMatch {
   return { evidence: repeated.slice(0, 3) };
 }
 
-export function runRules(input: string): Diagnostic[] {
-  const trimmed = input.trim();
+function hasDiagnostic(diagnostics: DiagnosticSeed[], ruleId: string, source?: DiagnosticSource): boolean {
+  return diagnostics.some((diagnostic) => {
+    const diagnosticSource = diagnostic.source ?? "original";
+    return diagnostic.ruleId === ruleId && (!source || diagnosticSource === source);
+  });
+}
+
+function firstRoleContent(document: PromptDocument): string {
+  return document.roles[0]?.content || document.source;
+}
+
+export function runRules(input: string | PromptDocument, scanContext?: Partial<RuleScanContext>): Diagnostic[] {
+  const document = typeof input === "string" ? parsePrompt(input) : input;
+  const source = document.source;
+  const trimmed = source.trim();
   const diagnostics: DiagnosticSeed[] = [];
 
   if (!trimmed) {
     return [];
   }
 
-  const vague = collectMatches(trimmed, VAGUE_PATTERNS);
+  const vague = collectMatches(source, VAGUE_PATTERNS);
   if (vague.evidence.length) {
     diagnostics.push({
       ruleId: "vague-instruction",
@@ -269,7 +314,7 @@ export function runRules(input: string): Diagnostic[] {
     });
   }
 
-  if (asksForGeneration(trimmed) && !hasOutputFormat(trimmed)) {
+  if (asksForGeneration(source) && !hasOutputFormat(source)) {
     diagnostics.push({
       ruleId: "missing-output-format",
       title: "Missing output format",
@@ -281,7 +326,7 @@ export function runRules(input: string): Diagnostic[] {
     });
   }
 
-  if (!hasActionVerb(trimmed)) {
+  if (!hasActionVerb(firstRoleContent(document))) {
     diagnostics.push({
       ruleId: "missing-task-definition",
       title: "Missing task definition",
@@ -293,7 +338,7 @@ export function runRules(input: string): Diagnostic[] {
     });
   }
 
-  const contradictions = findContradictions(trimmed);
+  const contradictions = findContradictions(source);
   if (contradictions.evidence.length) {
     diagnostics.push({
       ruleId: "contradictory-directives",
@@ -308,7 +353,7 @@ export function runRules(input: string): Diagnostic[] {
     });
   }
 
-  const injection = collectMatches(trimmed, INJECTION_PATTERNS);
+  const injection = collectMatches(source, INJECTION_PATTERNS);
   if (injection.evidence.length) {
     diagnostics.push({
       ruleId: "prompt-injection-risk",
@@ -323,7 +368,7 @@ export function runRules(input: string): Diagnostic[] {
     });
   }
 
-  const secretRequest = collectMatches(trimmed, SECRET_REQUEST_PATTERNS);
+  const secretRequest = collectMatches(source, SECRET_REQUEST_PATTERNS);
   if (secretRequest.evidence.length) {
     diagnostics.push({
       ruleId: "secret-exfiltration-risk",
@@ -338,7 +383,7 @@ export function runRules(input: string): Diagnostic[] {
     });
   }
 
-  const placeholders = findUndelimitedPlaceholders(trimmed);
+  const placeholders = findUndelimitedPlaceholders(source);
   if (placeholders.evidence.length) {
     diagnostics.push({
       ruleId: "undelimited-user-input",
@@ -353,7 +398,7 @@ export function runRules(input: string): Diagnostic[] {
     });
   }
 
-  const obfuscated = findObfuscatedAttacks(trimmed);
+  const obfuscated = findObfuscatedAttacks(source);
   if (obfuscated.evidence.length) {
     diagnostics.push({
       ruleId: "obfuscated-attack-pattern",
@@ -368,7 +413,57 @@ export function runRules(input: string): Diagnostic[] {
     });
   }
 
-  const sensitive = collectMatches(trimmed, SENSITIVE_PATTERNS);
+  const normalized = scanContext?.normalized;
+
+  if (normalized?.changed) {
+    const normalizedInjection = collectMatches(normalized.text, INJECTION_PATTERNS);
+    const normalizedSecret = collectMatches(normalized.text, SECRET_REQUEST_PATTERNS);
+    const normalizedObfuscated = findObfuscatedAttacks(normalized.text);
+    const normalizedEvidence = [
+      ...normalizedInjection.evidence,
+      ...normalizedSecret.evidence,
+      ...normalizedObfuscated.evidence,
+    ];
+
+    if (normalizedEvidence.length && !hasDiagnostic(diagnostics, "obfuscated-attack-pattern", "original")) {
+      diagnostics.push({
+        ruleId: "obfuscated-attack-pattern",
+        title: "Obfuscated attack pattern",
+        severity: "critical",
+        category: "security",
+        message: "After light normalization, the prompt contains instruction-override or secret-exfiltration language.",
+        evidence: [...new Set([...normalizedEvidence, ...normalized.changes])].slice(0, 5),
+        suggestion: "Remove disguised override text and keep untrusted content in explicit input boundaries.",
+        source: "normalized",
+      });
+    }
+  }
+
+  const decodedVariants = scanContext?.decodedVariants ?? [];
+  for (const variant of decodedVariants) {
+    const decodedInjection = collectMatches(variant.decoded, INJECTION_PATTERNS);
+    const decodedSecret = collectMatches(variant.decoded, SECRET_REQUEST_PATTERNS);
+    const decodedEvidence = [...decodedInjection.evidence, ...decodedSecret.evidence];
+
+    if (decodedEvidence.length) {
+      diagnostics.push({
+        ruleId: "obfuscated-attack-pattern",
+        title: "Encoded attack pattern",
+        severity: "critical",
+        category: "security",
+        message: `A ${variant.encoding} fragment decodes to instruction-override or secret-exfiltration language.`,
+        evidence: [
+          `${variant.encoding}: ${variant.original.slice(0, 72)}${variant.original.length > 72 ? "..." : ""}`,
+          ...decodedEvidence,
+        ],
+        suggestion: "Remove encoded payloads or treat them as inert source data with explicit boundaries.",
+        source: "decoded",
+      });
+      break;
+    }
+  }
+
+  const sensitive = collectMatches(source, SENSITIVE_PATTERNS);
   if (sensitive.evidence.length) {
     diagnostics.push({
       ruleId: "sensitive-data-leak",
@@ -383,19 +478,19 @@ export function runRules(input: string): Diagnostic[] {
     });
   }
 
-  if (trimmed.length > 1200 || wordCount(trimmed) > 220) {
+  if (source.length > 1200 || wordCount(source) > 220) {
     diagnostics.push({
       ruleId: "excessive-length",
       title: "Prompt may be too long",
       severity: "warning",
       category: "efficiency",
       message: "Long prompts are harder to inspect and can bury the actual task.",
-      evidence: [`${wordCount(trimmed)} words`],
+      evidence: [`${wordCount(source)} words`, `~${document.estimatedTokens} tokens`],
       suggestion: "Split the prompt into task, context, constraints, and output format sections.",
     });
   }
 
-  const repeated = findRepeatedInstructions(trimmed);
+  const repeated = findRepeatedInstructions(source);
   if (repeated.evidence.length) {
     diagnostics.push({
       ruleId: "repeated-instructions",
@@ -408,7 +503,7 @@ export function runRules(input: string): Diagnostic[] {
     });
   }
 
-  if (wordCount(trimmed) > 90 && !/\b(?:example|examples|for instance|e\.g\.)\b/i.test(trimmed)) {
+  if (wordCount(source) > 90 && !/\b(?:example|examples|for instance|e\.g\.)\b/i.test(source)) {
     diagnostics.push({
       ruleId: "missing-examples-for-complex-task",
       title: "Complex task lacks examples",
@@ -420,5 +515,10 @@ export function runRules(input: string): Diagnostic[] {
     });
   }
 
-  return diagnostics.map(createDiagnostic);
+  const uniqueDiagnostics = diagnostics.filter((diagnostic, index, all) => {
+    const key = `${diagnostic.ruleId}:${diagnostic.source ?? "original"}:${diagnostic.evidence.join("|")}`;
+    return all.findIndex((candidate) => `${candidate.ruleId}:${candidate.source ?? "original"}:${candidate.evidence.join("|")}` === key) === index;
+  });
+
+  return uniqueDiagnostics.map((diagnostic, index) => createDiagnostic(diagnostic, index, document));
 }

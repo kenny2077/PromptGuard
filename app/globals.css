@@ -3,8 +3,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #f7f8fb;
-  --foreground: #0f172a;
+  --background: #f6f6f4;
+  --foreground: #090912;
 }
 
 @theme inline {
@@ -21,7 +21,7 @@ body {
 }
 
 ::selection {
-  background: rgba(20, 184, 166, 0.22);
+  background: rgba(9, 9, 18, 0.14);
 }
 
 button,
@@ -36,4 +36,73 @@ textarea {
 
 pre {
   scrollbar-width: thin;
+}
+
+.pg-float-one {
+  animation: pg-float-one 8s ease-in-out infinite;
+}
+
+.pg-float-two {
+  animation: pg-float-two 9s ease-in-out infinite;
+}
+
+.pg-float-three {
+  animation: pg-float-three 10s ease-in-out infinite;
+}
+
+.pg-float-four {
+  animation: pg-float-four 8.5s ease-in-out infinite;
+}
+
+@keyframes pg-float-one {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-1deg);
+  }
+
+  50% {
+    transform: translate3d(0, -18px, 0) rotate(1deg);
+  }
+}
+
+@keyframes pg-float-two {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(1deg);
+  }
+
+  50% {
+    transform: translate3d(0, 16px, 0) rotate(-1deg);
+  }
+}
+
+@keyframes pg-float-three {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(1deg);
+  }
+
+  50% {
+    transform: translate3d(16px, -12px, 0) rotate(-1deg);
+  }
+}
+
+@keyframes pg-float-four {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-1deg);
+  }
+
+  50% {
+    transform: translate3d(-14px, 12px, 0) rotate(1deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-float-one,
+  .pg-float-two,
+  .pg-float-three,
+  .pg-float-four {
+    animation: none;
+  }
 }

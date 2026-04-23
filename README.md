@@ -15,7 +15,9 @@ Add final demo screenshots here before submission:
 ## Core Features
 
 - Deterministic TypeScript analysis engine
+- Parser-first report metadata with prompt format, roles, variables, location data, scan time, and fingerprint
 - 12 understandable prompt-quality and prompt-safety rules
+- Light normalization and bounded decode-then-scan for obvious obfuscation
 - Severity levels: info, warning, error, critical
 - Category scores for clarity, security, structure, and privacy
 - Sliders that adjust scoring strictness without changing rule definitions
@@ -35,7 +37,7 @@ components/
   promptguard-app.tsx         Complete scanner UI
   ui/                         Small shadcn-style primitives
 lib/
-  analysis/                   Rule engine, scoring, input normalization
+  analysis/                   Parser, scan preparation, rule engine, scoring, input normalization
   examples/                   Demo prompt presets
   rewrite/                    Deterministic rewrite engine
 types/
@@ -44,7 +46,7 @@ tests/
   analysis.test.ts            Lightweight engine tests
 ```
 
-The core scanner runs deterministically in the browser. The optional `/api/rewrite` route uses the OpenAI Responses API only when an API key is available; otherwise the product remains fully functional with the deterministic rewrite.
+The core scanner runs deterministically in the browser. It parses the prompt into a small `PromptDocument`, scans original plus normalized and decoded surfaces, and returns structured diagnostics with metadata. The optional `/api/rewrite` route uses the OpenAI Responses API only when an API key is available; otherwise the product remains fully functional with the deterministic rewrite.
 
 ## Rules
 

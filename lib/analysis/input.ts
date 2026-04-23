@@ -1,6 +1,9 @@
+import type { PromptFormat } from "../../types/analysis";
+
 export interface NormalizedPromptInput {
   ok: true;
   text: string;
+  format: PromptFormat;
 }
 
 export interface InvalidPromptInput {
@@ -18,7 +21,7 @@ export function normalizePromptInput(
   mode: "plain" | "messages",
 ): NormalizedPromptInput | InvalidPromptInput {
   if (mode === "plain") {
-    return { ok: true, text: rawInput };
+    return { ok: true, text: rawInput, format: "plain-text" };
   }
 
   try {
@@ -41,10 +44,10 @@ export function normalizePromptInput(
         throw new Error(`Message ${index + 1} must include string role and content fields.`);
       }
 
-      return `${message.role}: ${message.content}`;
+      return `[${message.role}]\n${message.content}`;
     });
 
-    return { ok: true, text: lines.join("\n\n") };
+    return { ok: true, text: lines.join("\n\n"), format: "message-array" };
   } catch (error) {
     return {
       ok: false,

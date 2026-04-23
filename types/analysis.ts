@@ -7,6 +7,43 @@ export type Category =
   | "privacy"
   | "efficiency";
 
+export type PromptFormat = "plain-text" | "message-array";
+
+export type DiagnosticSource = "original" | "normalized" | "decoded";
+
+export type RiskLevel = "ready" | "needs-edits" | "high-risk";
+
+export interface SourceLocation {
+  startOffset: number;
+  endOffset: number;
+  startLine: number;
+  startColumn: number;
+  endLine: number;
+  endColumn: number;
+}
+
+export interface PromptRole {
+  role: string;
+  content: string;
+  location: SourceLocation;
+}
+
+export interface PromptVariable {
+  name: string;
+  syntax: string;
+  occurrences: SourceLocation[];
+}
+
+export interface PromptDocument {
+  source: string;
+  format: PromptFormat;
+  roles: PromptRole[];
+  variables: PromptVariable[];
+  estimatedTokens: number;
+  characterCount: number;
+  lineCount: number;
+}
+
 export interface Diagnostic {
   id: string;
   ruleId: string;
@@ -18,6 +55,8 @@ export interface Diagnostic {
   suggestion: string;
   startIndex?: number;
   endIndex?: number;
+  location?: SourceLocation;
+  source?: DiagnosticSource;
 }
 
 export interface ScoreBreakdown {
@@ -44,6 +83,20 @@ export interface AnalysisReport {
   };
   rewrittenPrompt: string;
   changes: RewriteChange[];
+  metadata: {
+    durationMs: number;
+    characterCount: number;
+    estimatedTokens: number;
+    lineCount: number;
+    inputFormat: PromptFormat;
+    roleCount: number;
+    variableCount: number;
+    normalized: boolean;
+    decodedVariantCount: number;
+    decodedEncodings: string[];
+    riskLevel: RiskLevel;
+    fingerprint: string;
+  };
 }
 
 export interface AnalysisOptions {

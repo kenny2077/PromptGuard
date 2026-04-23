@@ -1,5 +1,5 @@
-import { PromptGuardApp } from "../components/promptguard-app";
+import { LandingPage } from "../components/landing-page";
 
 export default function Home() {
-  return <PromptGuardApp />;
+  return <LandingPage />;
 }
