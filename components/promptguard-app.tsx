@@ -2,21 +2,24 @@
 
 import {
   AlertTriangle,
+  Activity,
   Braces,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Clipboard,
   Code2,
   Copy,
   FileJson2,
   Fingerprint,
+  History,
+  Info,
   MapPin,
-  Moon,
   RefreshCw,
   ScanLine,
+  Settings,
   ShieldCheck,
   Sparkles,
-  Sun,
   Wand2,
 } from "lucide-react";
 import Link from "next/link";
@@ -30,7 +33,6 @@ import type {
   AnalysisOptions,
   AnalysisReport,
   Category,
-  DemoExample,
   Diagnostic,
   RiskLevel,
   Severity,
@@ -40,6 +42,15 @@ import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 
 const severityOrder: Severity[] = ["critical", "error", "warning", "info"];
+
+type InputMode = "plain" | "messages";
+
+const productNavItems = [
+  { label: "Scanner", icon: ScanLine, active: true },
+  { label: "Report", icon: Activity, active: false },
+  { label: "History", icon: History, active: false },
+  { label: "About", icon: Info, active: false },
+];
 
 const severityMeta: Record<
   Severity,
@@ -251,9 +262,8 @@ function getStoredState() {
 
 interface PromptGuardState {
   prompt: string;
-  mode: "plain" | "messages";
+  mode: InputMode;
   options: AnalysisOptions;
-  dark: boolean;
 }
 
 function ScoreCard({
@@ -285,18 +295,23 @@ function SliderControl({
   label,
   value,
   onChange,
+  surface = "light",
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  surface?: "light" | "dark";
 }) {
   const descriptor = value <= 2 ? "Light" : value === 3 ? "Balanced" : "Strict";
+  const isDark = surface === "dark";
 
   return (
     <label className="block">
       <div className="mb-2 flex items-center justify-between text-sm">
-        <span className="font-medium text-slate-700 dark:text-slate-200">{label}</span>
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{descriptor}</span>
+        <span className={cn("font-medium", isDark ? "text-white/82" : "text-slate-700 dark:text-slate-200")}>{label}</span>
+        <span className={cn("text-xs font-medium", isDark ? "text-white/40" : "text-slate-500 dark:text-slate-400")}>
+          {descriptor}
+        </span>
       </div>
       <input
         aria-label={label}
@@ -305,9 +320,178 @@ function SliderControl({
         max={5}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-slate-950 dark:bg-slate-800 dark:accent-white"
+        className={cn(
+          "h-2 w-full cursor-pointer appearance-none rounded-full",
+          isDark ? "bg-white/12 accent-white" : "bg-slate-200 accent-slate-950 dark:bg-slate-800 dark:accent-white",
+        )}
       />
     </label>
+  );
+}
+
+function ProductNavItem({
+  icon: Icon,
+  label,
+  active = false,
+}: {
+  icon: typeof ScanLine;
+  label: string;
+  active?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium transition lg:w-10 lg:justify-center lg:px-0 lg:group-hover/sidebar:w-full lg:group-hover/sidebar:justify-start lg:group-hover/sidebar:px-3",
+        active ? "bg-white/[0.08] text-white" : "text-white/55 hover:bg-white/[0.05] hover:text-white/82",
+      )}
+    >
+      <Icon className={cn("h-4 w-4 shrink-0", active ? "text-white" : "text-white/45")} />
+      <span className="lg:hidden lg:group-hover/sidebar:inline">{label}</span>
+    </button>
+  );
+}
+
+function SidebarDropdown({
+  icon: Icon,
+  label,
+  value,
+  open,
+  onToggle,
+  children,
+}: {
+  icon: typeof ScanLine;
+  label: string;
+  value?: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section>
+      <button
+        type="button"
+        onClick={onToggle}
+        className={cn(
+          "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-white/60 transition hover:bg-white/[0.05] hover:text-white/85",
+          "lg:w-10 lg:justify-center lg:px-0 lg:group-hover/sidebar:w-full lg:group-hover/sidebar:justify-start lg:group-hover/sidebar:px-3",
+          open && "bg-white/[0.06] text-white",
+        )}
+      >
+        <Icon className="h-4 w-4 shrink-0 text-white/48" />
+        <span className="lg:hidden lg:group-hover/sidebar:inline">{label}</span>
+        {value ? (
+          <span className="ml-auto text-xs font-medium text-white/35 lg:hidden lg:group-hover/sidebar:inline">{value}</span>
+        ) : null}
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-white/35 transition lg:hidden lg:group-hover/sidebar:block",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+      {open ? (
+        <div className="mt-2 rounded-md border border-white/10 bg-white/[0.035] p-3 lg:hidden lg:group-hover/sidebar:block">
+          {children}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function ProductSidebar({
+  mode,
+  setMode,
+  options,
+  onOptionChange,
+}: {
+  mode: InputMode;
+  setMode: (mode: InputMode) => void;
+  options: AnalysisOptions;
+  onOptionChange: (key: keyof AnalysisOptions, value: number) => void;
+}) {
+  const [inputOpen, setInputOpen] = useState(false);
+  const [parametersOpen, setParametersOpen] = useState(false);
+  const inputModeLabel = mode === "messages" ? "JSON" : "Plain";
+
+  return (
+    <aside className="group/sidebar shrink-0 border-b border-black/10 bg-[#080810] text-white lg:sticky lg:top-0 lg:h-screen lg:w-16 lg:border-b-0 lg:border-r lg:overflow-x-hidden lg:overflow-y-auto lg:transition-[width] lg:duration-300 lg:ease-out lg:hover:w-[292px]">
+      <div className="flex flex-col lg:min-h-full lg:w-[292px]">
+        <div className="px-5 py-5">
+          <Link href="/" className="flex items-center gap-3" aria-label="PromptGuard overview">
+            <span className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.06]">
+              <ShieldCheck className="h-4 w-4 text-white" />
+            </span>
+            <span className="lg:hidden lg:group-hover/sidebar:block">
+              <span className="block text-lg font-semibold text-white">PromptGuard</span>
+              <span className="block text-xs font-medium text-white/42">Scanner console</span>
+            </span>
+          </Link>
+        </div>
+
+        <div className="px-3 pb-5 lg:pb-0">
+          <nav className="space-y-1.5">
+            <ProductNavItem {...productNavItems[0]} />
+            <SidebarDropdown
+              icon={FileJson2}
+              label="Input mode"
+              value={inputModeLabel}
+              open={inputOpen}
+              onToggle={() => setInputOpen((value) => !value)}
+            >
+              <div className="grid grid-cols-2 rounded-md border border-white/10 bg-white/[0.04] p-1">
+                {[
+                  ["plain", "Plain"],
+                  ["messages", "JSON"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setMode(value as InputMode)}
+                    className={cn(
+                      "rounded px-2 py-2 text-xs font-semibold transition",
+                      mode === value ? "bg-white text-[#080810]" : "text-white/55 hover:text-white",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </SidebarDropdown>
+            <SidebarDropdown
+              icon={Settings}
+              label="Parameters"
+              open={parametersOpen}
+              onToggle={() => setParametersOpen((value) => !value)}
+            >
+              <div className="space-y-4">
+                <SliderControl
+                  surface="dark"
+                  label="Privacy"
+                  value={options.privacySensitivity}
+                  onChange={(value) => onOptionChange("privacySensitivity", value)}
+                />
+                <SliderControl
+                  surface="dark"
+                  label="Clarity"
+                  value={options.clarityStrictness}
+                  onChange={(value) => onOptionChange("clarityStrictness", value)}
+                />
+                <SliderControl
+                  surface="dark"
+                  label="Security"
+                  value={options.securityStrictness}
+                  onChange={(value) => onOptionChange("securityStrictness", value)}
+                />
+              </div>
+            </SidebarDropdown>
+            {productNavItems.slice(1).map((item) => (
+              <ProductNavItem key={item.label} {...item} />
+            ))}
+          </nav>
+        </div>
+      </div>
+    </aside>
   );
 }
 
@@ -319,7 +503,7 @@ function EmptyReport() {
       </div>
       <h2 className="mt-5 text-xl font-semibold text-slate-950 dark:text-white">Ready to scan</h2>
       <p className="mt-2 max-w-md text-sm leading-6 text-slate-600 dark:text-slate-400">
-        Paste a prompt or load a demo example. PromptGuard will return scores, diagnostics, and a safer rewrite.
+        Paste a prompt to get scores, diagnostics, and a safer rewrite.
       </p>
     </div>
   );
@@ -488,9 +672,8 @@ function RewritePanel({
 
 export function PromptGuardApp() {
   const [prompt, setPrompt] = useState("");
-  const [mode, setMode] = useState<"plain" | "messages">("plain");
+  const [mode, setMode] = useState<InputMode>("plain");
   const [options, setOptions] = useState<AnalysisOptions>(initialOptions);
-  const [dark, setDark] = useState(false);
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [inputError, setInputError] = useState("");
   const [compareMode, setCompareMode] = useState<"rewritten" | "original">("rewritten");
@@ -510,7 +693,6 @@ export function PromptGuardApp() {
         setPrompt(demo.prompt);
         setMode(nextMode);
         setOptions(initialOptions);
-        setDark(false);
 
         if (prepared.ok) {
           setInputError("");
@@ -529,7 +711,6 @@ export function PromptGuardApp() {
       if (stored.prompt) setPrompt(stored.prompt);
       if (stored.mode) setMode(stored.mode);
       if (stored.options) setOptions(stored.options);
-      if (typeof stored.dark === "boolean") setDark(stored.dark);
     });
 
     return () => window.cancelAnimationFrame(frame);
@@ -542,10 +723,9 @@ export function PromptGuardApp() {
         prompt,
         mode,
         options,
-        dark,
       }),
     );
-  }, [prompt, mode, options, dark]);
+  }, [prompt, mode, options]);
 
   const normalized = useMemo(() => normalizePromptInput(prompt, mode), [prompt, mode]);
   const normalizedText = normalized.ok ? normalized.text : prompt;
@@ -563,23 +743,6 @@ export function PromptGuardApp() {
     setReport(analyzePrompt(prepared.text, options, prepared.format));
     setCompareMode("rewritten");
     setAiStatus("");
-  }
-
-  function loadExample(example: DemoExample, analyze = true) {
-    const nextMode = example.mode ?? "plain";
-    setPrompt(example.prompt);
-    setMode(nextMode);
-
-    if (analyze) {
-      const prepared = normalizePromptInput(example.prompt, nextMode);
-
-      if (prepared.ok) {
-        setInputError("");
-        setReport(analyzePrompt(prepared.text, options, prepared.format));
-        setCompareMode("rewritten");
-        setAiStatus("");
-      }
-    }
   }
 
   function updateScoringOption(key: keyof AnalysisOptions, value: number) {
@@ -643,212 +806,139 @@ export function PromptGuardApp() {
     : [];
 
   return (
-    <div className={cn(dark && "dark")}>
-      <main className="min-h-screen bg-[#f6f6f4] text-slate-950 dark:bg-[#07090d] dark:text-white">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 py-6 sm:px-8 lg:px-10">
-          <header className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-slate-950 text-white shadow-sm dark:bg-white dark:text-slate-950">
-                <ShieldCheck className="h-5 w-5" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-semibold sm:text-3xl">PromptGuard</h1>
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Prompt safety scanner</p>
-              </div>
+    <div className="min-h-screen bg-[#f6f6f4] text-slate-950">
+      <div className="flex min-h-screen flex-col lg:flex-row">
+        <ProductSidebar
+          mode={mode}
+          setMode={setMode}
+          options={options}
+          onOptionChange={updateScoringOption}
+        />
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="sticky top-0 z-20 flex min-h-14 items-center justify-between gap-3 border-b border-black/10 bg-[#f6f6f4]/95 px-5 py-3 backdrop-blur sm:px-8 lg:px-10">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase text-slate-500">Live product</p>
+              <h1 className="text-xl font-semibold text-slate-950">Prompt scanner</h1>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
+              {copyStatus ? <span className="hidden text-sm text-slate-500 sm:inline">{copyStatus}</span> : null}
+              <Badge tone="neutral">{report ? "Report ready" : "Ready"}</Badge>
               <Link
                 href="/"
-                className="hidden rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900 sm:inline-flex"
+                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 Overview
               </Link>
-              <Badge tone="neutral">Live scanner</Badge>
-              <Badge tone="neutral">Deterministic core</Badge>
-              <Button size="icon" variant="ghost" aria-label="Toggle dark mode" onClick={() => setDark((value) => !value)}>
-                {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </Button>
             </div>
           </header>
 
-          <section className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)]">
-            <div className="space-y-5">
-              <div>
-                <h2 className="max-w-3xl text-4xl font-semibold text-slate-950 dark:text-white sm:text-5xl">
-                  Catch vague, unsafe, and privacy-risky prompts before they reach an AI model.
-                </h2>
-                <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">
-                  PromptGuard is a focused prompt spellcheck and safety scanner: paste a prompt, get structured diagnostics,
-                  then copy a safer rewrite.
-                </p>
+          <main className="flex-1 overflow-auto">
+            <div className="mx-auto w-full max-w-[1520px] px-5 py-7 sm:px-8 lg:px-10">
+              <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-3xl font-semibold leading-tight text-slate-950 sm:text-4xl">Scan a prompt before it ships.</h2>
+                  <p className="mt-2 max-w-2xl text-base leading-7 text-slate-600">
+                    Paste a prompt, review structured diagnostics, and copy a safer rewrite.
+                  </p>
+                </div>
               </div>
 
-              <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-950 dark:text-white">Prompt input</h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Analyze a plain prompt or OpenAI-style messages.</p>
+              <section className="grid gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(420px,1.08fr)]">
+                <section className="min-w-0 rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-950">Prompt input</h3>
+                      <p className="text-sm text-slate-500">
+                        {mode === "messages" ? "OpenAI-style message array JSON." : "Plain text prompt."}
+                      </p>
+                    </div>
+                    <Badge tone="neutral">{mode === "messages" ? "Message JSON" : "Plain text"}</Badge>
                   </div>
-                  <div className="rounded-md border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900">
-                    <button
-                      type="button"
-                      onClick={() => setMode("plain")}
-                      className={cn(
-                        "rounded px-3 py-1.5 text-xs font-medium transition",
-                        mode === "plain"
-                          ? "bg-white text-slate-950 shadow-sm dark:bg-slate-800 dark:text-white"
-                          : "text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white",
-                      )}
-                    >
-                      Plain text
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMode("messages")}
-                      className={cn(
-                        "rounded px-3 py-1.5 text-xs font-medium transition",
-                        mode === "messages"
-                          ? "bg-white text-slate-950 shadow-sm dark:bg-slate-800 dark:text-white"
-                          : "text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white",
-                      )}
-                    >
-                      Message JSON
-                    </button>
+
+                  <Textarea
+                    value={prompt}
+                    onChange={(event) => setPrompt(event.target.value)}
+                    className="min-h-[380px] shadow-none lg:min-h-[520px]"
+                    placeholder={
+                      mode === "messages"
+                        ? '[{"role":"user","content":"Summarize {{user_input}}"}]'
+                        : "Paste a prompt to scan..."
+                    }
+                  />
+
+                  {inputError ? (
+                    <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                      {inputError}
+                    </p>
+                  ) : null}
+
+                  {report ? <EvidenceSummary report={report} /> : null}
+
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+                    <p className="text-sm text-slate-500">Ready when your prompt is.</p>
+                    <Button variant="primary" onClick={() => runAnalysis()} disabled={!prompt.trim()}>
+                      <ShieldCheck className="h-4 w-4" />
+                      Analyze prompt
+                    </Button>
                   </div>
-                </div>
+                </section>
 
-                <Textarea
-                  value={prompt}
-                  onChange={(event) => setPrompt(event.target.value)}
-                  placeholder={
-                    mode === "messages"
-                      ? '[{"role":"user","content":"Summarize {{user_input}}"}]'
-                      : "Paste a prompt to scan..."
-                  }
-                />
+                <div className="min-w-0 space-y-4">
+                  {report ? (
+                    <>
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        {scoreCards.map((card) => (
+                          <ScoreCard key={card.label} {...card} />
+                        ))}
+                      </div>
 
-                {inputError ? (
-                  <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">
-                    {inputError}
-                  </p>
-                ) : null}
+                      <ScanSnapshot report={report} />
 
-                {report ? <EvidenceSummary report={report} /> : null}
+                      <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <h3 className="text-lg font-semibold text-slate-950">Analysis report</h3>
+                            <p className="text-sm text-slate-500">
+                              {report.summary.critical} critical, {report.summary.errors} errors, {report.summary.warnings} warnings,{" "}
+                              {report.summary.infos} infos
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => copyText(JSON.stringify(report, null, 2), "Report copied.")}
+                          >
+                            <Clipboard className="h-3.5 w-3.5" />
+                            Copy report
+                          </Button>
+                        </div>
+                        <DiagnosticList report={report} />
+                      </section>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {demoExamples.map((example) => (
-                    <button
-                      key={example.id}
-                      type="button"
-                      onClick={() => loadExample(example)}
-                      className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-white hover:text-slate-950 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-950 dark:hover:text-white"
-                      title={example.description}
-                    >
-                      {example.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mt-5 grid gap-4 sm:grid-cols-3">
-                  <SliderControl
-                    label="Privacy sensitivity"
-                    value={options.privacySensitivity}
-                    onChange={(value) => updateScoringOption("privacySensitivity", value)}
-                  />
-                  <SliderControl
-                    label="Clarity strictness"
-                    value={options.clarityStrictness}
-                    onChange={(value) => updateScoringOption("clarityStrictness", value)}
-                  />
-                  <SliderControl
-                    label="Security strictness"
-                    value={options.securityStrictness}
-                    onChange={(value) => updateScoringOption("securityStrictness", value)}
-                  />
-                </div>
-
-                <div className="mt-5 flex flex-wrap items-center gap-3">
-                  <Button variant="primary" onClick={() => runAnalysis()} disabled={!prompt.trim()}>
-                    <ShieldCheck className="h-4 w-4" />
-                    Analyze prompt
-                  </Button>
-                  <Button onClick={() => loadExample(demoExamples[1])}>
-                    <Sparkles className="h-4 w-4" />
-                    Load demo example
-                  </Button>
-                  {copyStatus ? <span className="text-sm text-slate-600 dark:text-slate-300">{copyStatus}</span> : null}
+                      <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+                        <RewritePanel
+                          report={report}
+                          original={normalizedText}
+                          compareMode={compareMode}
+                          setCompareMode={setCompareMode}
+                          onCopyRewrite={() => copyText(report.rewrittenPrompt, "Rewrite copied.")}
+                          onCopyReport={() => copyText(JSON.stringify(report, null, 2), "Report JSON copied.")}
+                          onAiRewrite={requestAiRewrite}
+                          aiStatus={aiStatus}
+                          aiBusy={aiBusy}
+                        />
+                      </section>
+                    </>
+                  ) : (
+                    <EmptyReport />
+                  )}
                 </div>
               </section>
             </div>
-
-            <div className="space-y-5">
-              {report ? (
-                <>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    {scoreCards.map((card) => (
-                      <ScoreCard key={card.label} {...card} />
-                    ))}
-                  </div>
-
-                  <ScanSnapshot report={report} />
-
-                  <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-                    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h2 className="text-lg font-semibold text-slate-950 dark:text-white">Analysis report</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                          {report.summary.critical} critical, {report.summary.errors} errors, {report.summary.warnings} warnings,{" "}
-                          {report.summary.infos} infos
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => copyText(JSON.stringify(report, null, 2), "Report copied.")}
-                      >
-                        <Clipboard className="h-3.5 w-3.5" />
-                        Copy report
-                      </Button>
-                    </div>
-                    <DiagnosticList report={report} />
-                  </section>
-
-                  <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-                    <RewritePanel
-                      report={report}
-                      original={normalizedText}
-                      compareMode={compareMode}
-                      setCompareMode={setCompareMode}
-                      onCopyRewrite={() => copyText(report.rewrittenPrompt, "Rewrite copied.")}
-                      onCopyReport={() => copyText(JSON.stringify(report, null, 2), "Report JSON copied.")}
-                      onAiRewrite={requestAiRewrite}
-                      aiStatus={aiStatus}
-                      aiBusy={aiBusy}
-                    />
-                  </section>
-                </>
-              ) : (
-                <EmptyReport />
-              )}
-            </div>
-          </section>
-
-          <section className="grid gap-4 border-t border-slate-200 py-6 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-300 md:grid-cols-3">
-            <div>
-              <h2 className="font-semibold text-slate-950 dark:text-white">Privacy-friendly</h2>
-              <p className="mt-2 leading-6">Core analysis runs locally in deterministic TypeScript with no database or auth.</p>
-            </div>
-            <div>
-              <h2 className="font-semibold text-slate-950 dark:text-white">Demo-ready</h2>
-              <p className="mt-2 leading-6">Examples cover vague prompts, injection language, privacy leaks, and better baselines.</p>
-            </div>
-            <div>
-              <h2 className="font-semibold text-slate-950 dark:text-white">Optional AI assist</h2>
-              <p className="mt-2 leading-6">When `OPENAI_API_KEY` exists, the rewrite endpoint can refine the deterministic version.</p>
-            </div>
-          </section>
+          </main>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
