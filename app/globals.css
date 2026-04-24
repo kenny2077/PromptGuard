@@ -24,7 +24,10 @@ body {
   background: rgba(9, 9, 18, 0.14);
 }
 
-button,
+button {
+  font-family: inherit;
+}
+
 textarea,
 input {
   font: inherit;

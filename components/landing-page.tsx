@@ -5,14 +5,12 @@ import {
   FileJson2,
   Fingerprint,
   LockKeyhole,
-  Mail,
-  MapPin,
-  PhoneCall,
   ScanLine,
   ShieldCheck,
   Wand2,
 } from "lucide-react";
 import Link from "next/link";
+import { ContactCta } from "@/components/contact-cta";
 
 const navItems = [
   { label: "Features", href: "#features" },
@@ -161,27 +159,6 @@ const examples = [
   },
 ];
 
-const contactMethods = [
-  {
-    title: "Sales",
-    value: "sales@promptguard.ai",
-    href: "mailto:sales@promptguard.ai",
-    icon: Mail,
-  },
-  {
-    title: "Support line",
-    value: "+1 (512) 555-0199",
-    href: "tel:+15125550199",
-    icon: PhoneCall,
-  },
-  {
-    title: "Office",
-    value: "Austin, TX",
-    href: "#contact",
-    icon: MapPin,
-  },
-];
-
 function LogoMark({ className = "" }: { className?: string }) {
   return (
     <span className={`flex h-11 w-11 items-center justify-center rounded-lg bg-[#05050d] text-white shadow-sm ${className}`}>
@@ -243,7 +220,7 @@ export function LandingPage() {
   return (
     <main className="min-h-screen bg-[#f6f6f4] text-[#090912]">
       <header className="sticky top-0 z-30 border-b border-black/10 bg-[#f6f6f4]/90 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-4 sm:px-8 lg:px-10">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-10">
           <Link href="/" className="flex items-center gap-3" aria-label="PromptGuard home">
             <LogoMark />
             <span className="text-xl font-semibold">PromptGuard</span>
@@ -258,9 +235,6 @@ export function LandingPage() {
           </nav>
 
           <div className="flex items-center gap-3">
-            <a href="#workflow" className="hidden text-base font-medium text-[#090912] transition hover:text-[#72717d] sm:inline-flex">
-              How it works
-            </a>
             <Link
               href="/scanner"
               className="inline-flex h-11 items-center justify-center rounded-lg bg-[#05050d] px-5 text-base font-semibold text-white shadow-sm transition hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#05050d]"
@@ -271,7 +245,7 @@ export function LandingPage() {
         </div>
       </header>
 
-      <section className="mx-auto max-w-7xl px-5 pb-16 pt-24 text-center sm:px-8 sm:pb-18 sm:pt-30 lg:px-10">
+      <section className="mx-auto max-w-7xl px-5 pb-24 pt-28 text-center sm:px-8 sm:pb-28 sm:pt-36 lg:px-10">
         <h1 className="mx-auto max-w-6xl text-5xl font-semibold leading-[1.07] text-[#090912] sm:text-6xl lg:text-7xl">
           Catch vague, unsafe, and <span className="text-[#72717d]">privacy-risky</span> prompts before AI.
         </h1>
@@ -310,20 +284,23 @@ export function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-16 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {features.map((feature) => {
               const Icon = feature.icon;
 
               return (
-                <article key={feature.title} className="min-h-72 rounded-lg border border-black/10 bg-white p-7 shadow-sm">
-                  <div className="flex items-start justify-between gap-4">
-                    <Icon className="h-9 w-9 text-[#080810]" strokeWidth={1.8} />
-                    <span className="rounded-lg bg-[#eeeeef] px-3 py-1 text-sm font-semibold text-[#262631]">
+                <article
+                  key={feature.title}
+                  className="min-h-[232px] rounded-lg border border-black/10 bg-white p-6 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <Icon className="h-8 w-8 text-[#080810]" strokeWidth={1.8} />
+                    <span className="rounded-lg bg-[#eeeeef] px-2.5 py-1 text-xs font-semibold text-[#262631] sm:text-sm">
                       {feature.tag}
                     </span>
                   </div>
-                  <h3 className="mt-8 text-2xl font-semibold text-[#090912]">{feature.title}</h3>
-                  <p className="mt-5 text-lg leading-8 text-[#72717d]">{feature.desc}</p>
+                  <h3 className="mt-6 text-[1.75rem] font-semibold leading-[1.15] text-[#090912]">{feature.title}</h3>
+                  <p className="mt-4 text-base leading-7 text-[#72717d]">{feature.desc}</p>
                 </article>
               );
             })}
@@ -439,7 +416,7 @@ export function LandingPage() {
       </section>
 
       <section id="examples" className="border-y border-black/10 bg-[#f1f1f0]">
-        <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:px-10">
+        <div className="mx-auto max-w-7xl px-5 pb-12 pt-16 sm:px-8 lg:px-10">
           <div className="mx-auto max-w-5xl text-center">
             <h2 className="text-4xl font-semibold leading-tight text-[#090912] sm:text-5xl">Examples that make risk obvious.</h2>
             <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-[#72717d]">
@@ -448,7 +425,7 @@ export function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-16 grid gap-6 lg:grid-cols-3">
+          <div className="mt-12 grid gap-6 lg:grid-cols-3">
             {examples.map((example) => (
               <article key={example.title} className="rounded-lg border border-black/10 bg-white p-7 shadow-sm">
                 <p className="text-xl leading-8 text-[#090912]">&quot;{example.quote}&quot;</p>
@@ -467,102 +444,51 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section id="contact" className="bg-[#f6f6f4]">
-        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-20 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:px-10">
-          <div>
-            <h2 className="text-4xl font-semibold leading-tight text-[#090912] sm:text-5xl">Talk to PromptGuard.</h2>
-            <p className="mt-5 max-w-xl text-lg leading-8 text-[#72717d]">
-              Need help evaluating prompt safety for a product workflow? Reach out for pricing, support, or deployment
-              guidance.
-            </p>
-            <a
-              href="mailto:sales@promptguard.ai"
-              className="mt-9 inline-flex h-12 items-center justify-center gap-3 rounded-lg bg-[#05050d] px-6 text-base font-semibold text-white shadow-sm transition hover:bg-black"
-            >
-              Contact sales
-              <ArrowRight className="h-5 w-5" />
-            </a>
-          </div>
+      <ContactCta />
 
-          <div className="grid gap-5 sm:grid-cols-3">
-            {contactMethods.map((method) => {
-              const Icon = method.icon;
-
-              return (
-                <a
-                  key={method.title}
-                  href={method.href}
-                  className="rounded-lg border border-black/10 bg-white p-6 shadow-sm transition hover:border-black/20 hover:bg-[#fbfbfa]"
-                >
-                  <Icon className="h-7 w-7 text-[#080810]" strokeWidth={1.8} />
-                  <h3 className="mt-6 text-lg font-semibold text-[#090912]">{method.title}</h3>
-                  <p className="mt-2 text-base font-medium text-[#72717d]">{method.value}</p>
-                </a>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <footer id="footer" className="bg-[#f6f6f4]">
-        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 lg:px-10">
-          <div className="grid gap-12 border-b border-black/10 pb-14 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
+      <footer id="footer" className="bg-[#080810] text-white">
+        <div className="mx-auto max-w-7xl px-5 pb-8 sm:px-8 lg:px-10">
+          <div className="grid gap-8 border-t border-white/10 py-9 lg:grid-cols-[1.4fr_0.45fr_0.45fr]">
             <div>
               <div className="flex items-center gap-3">
-                <LogoMark />
-                <span className="text-xl font-semibold">PromptGuard</span>
+                <img src="/icon.svg" alt="" className="h-11 w-11 rounded-lg" />
+                <span className="text-lg font-semibold">PromptGuard</span>
               </div>
-              <p className="mt-7 max-w-xl text-xl leading-8 text-[#72717d]">
+              <p className="mt-5 max-w-xl text-base leading-7 text-white/50">
                 Catch vague, unsafe, and privacy-risky prompts before they reach an AI model.
               </p>
-              <div className="mt-6 grid gap-2 text-base font-medium text-[#72717d]">
-                <a href="mailto:hello@promptguard.ai" className="hover:text-[#090912]">hello@promptguard.ai</a>
-                <a href="mailto:support@promptguard.ai" className="hover:text-[#090912]">support@promptguard.ai</a>
-              </div>
-              <div className="mt-8 flex max-w-xl gap-2">
-                <Link
-                  href="/scanner"
-                  className="inline-flex h-12 items-center justify-center rounded-lg bg-[#05050d] px-6 text-base font-semibold text-white shadow-sm transition hover:bg-black"
-                >
-                  Try live scanner
-                </Link>
+              <div className="mt-5 grid gap-2 text-sm font-medium text-white/50">
+                <a href="mailto:hello@promptguard.ai" className="hover:text-white">hello@promptguard.ai</a>
+                <a href="mailto:support@promptguard.ai" className="hover:text-white">support@promptguard.ai</a>
               </div>
             </div>
 
             <div>
-              <h3 className="text-lg font-semibold text-[#090912]">Product</h3>
-              <div className="mt-5 grid gap-4 text-base font-medium text-[#72717d]">
-                <a href="#features" className="hover:text-[#090912]">Features</a>
-                <a href="#workflow" className="hover:text-[#090912]">Workflow</a>
-                <a href="#pricing" className="hover:text-[#090912]">Pricing</a>
-                <Link href="/scanner" className="hover:text-[#090912]">Scanner</Link>
+              <h3 className="text-base font-semibold text-white">Product</h3>
+              <div className="mt-4 grid gap-3 text-sm font-medium text-white/50">
+                <a href="#features" className="hover:text-white">Features</a>
+                <a href="#workflow" className="hover:text-white">Workflow</a>
+                <a href="#pricing" className="hover:text-white">Pricing</a>
+                <Link href="/scanner" className="hover:text-white">Scanner</Link>
               </div>
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-[#090912]">Checks</h3>
-              <div className="mt-5 grid gap-4 text-base font-medium text-[#72717d]">
-                <span>Privacy leaks</span>
-                <span>Injection risk</span>
-                <span>Missing format</span>
-              </div>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-[#090912]">Company</h3>
-              <div className="mt-5 grid gap-4 text-base font-medium text-[#72717d]">
-                <a href="#contact" className="hover:text-[#090912]">Contact</a>
-                <a href="mailto:sales@promptguard.ai" className="hover:text-[#090912]">Sales</a>
-                <a href="mailto:support@promptguard.ai" className="hover:text-[#090912]">Support</a>
-                <span>Austin, TX</span>
+              <h3 className="text-base font-semibold text-white">Company</h3>
+              <div className="mt-4 grid gap-3 text-sm font-medium text-white/50">
+                <a href="#contact" className="hover:text-white">Contact</a>
+                <a href="mailto:sales@promptguard.ai" className="hover:text-white">Sales</a>
+                <a href="mailto:support@promptguard.ai" className="hover:text-white">Support</a>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-4 pt-10 text-base font-medium text-[#72717d] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 border-t border-white/10 pt-7 text-sm font-medium text-white/45 sm:flex-row sm:items-center sm:justify-between">
             <span>(c) 2026 PromptGuard, Inc. All rights reserved.</span>
             <span className="flex flex-wrap gap-x-6 gap-y-2">
-              <a href="#footer" className="hover:text-[#090912]">Privacy Policy</a>
-              <a href="#footer" className="hover:text-[#090912]">Terms of Service</a>
-              <a href="#contact" className="hover:text-[#090912]">Contact</a>
+              <a href="#footer" className="hover:text-white">Privacy Policy</a>
+              <a href="#footer" className="hover:text-white">Terms of Service</a>
+              <a href="https://github.com/kenny2077" target="_blank" rel="noreferrer" className="hover:text-white">GitHub</a>
+              <a href="https://www.linkedin.com/in/kaiyi-guo-917462290/" target="_blank" rel="noreferrer" className="hover:text-white">LinkedIn</a>
             </span>
           </div>
         </div>

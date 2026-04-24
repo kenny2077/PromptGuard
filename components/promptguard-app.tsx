@@ -23,7 +23,7 @@ import {
   Wand2,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { analyzePrompt } from "../lib/analysis";
 import { normalizePromptInput } from "../lib/analysis/input";
@@ -307,9 +307,9 @@ function SliderControl({
 
   return (
     <label className="block">
-      <div className="mb-2 flex items-center justify-between text-sm">
+      <div className={cn("mb-2 flex items-center justify-between", isDark ? "text-[13px]" : "text-sm")}>
         <span className={cn("font-medium", isDark ? "text-white/82" : "text-slate-700 dark:text-slate-200")}>{label}</span>
-        <span className={cn("text-xs font-medium", isDark ? "text-white/40" : "text-slate-500 dark:text-slate-400")}>
+        <span className={cn("font-medium", isDark ? "text-[11px] text-white/40" : "text-xs text-slate-500 dark:text-slate-400")}>
           {descriptor}
         </span>
       </div>
@@ -329,6 +329,39 @@ function SliderControl({
   );
 }
 
+function ParameterControls({
+  options,
+  onOptionChange,
+  surface = "light",
+}: {
+  options: AnalysisOptions;
+  onOptionChange: (key: keyof AnalysisOptions, value: number) => void;
+  surface?: "light" | "dark";
+}) {
+  return (
+    <div className="space-y-4">
+      <SliderControl
+        surface={surface}
+        label="Privacy"
+        value={options.privacySensitivity}
+        onChange={(value) => onOptionChange("privacySensitivity", value)}
+      />
+      <SliderControl
+        surface={surface}
+        label="Clarity"
+        value={options.clarityStrictness}
+        onChange={(value) => onOptionChange("clarityStrictness", value)}
+      />
+      <SliderControl
+        surface={surface}
+        label="Security"
+        value={options.securityStrictness}
+        onChange={(value) => onOptionChange("securityStrictness", value)}
+      />
+    </div>
+  );
+}
+
 function ProductNavItem({
   icon: Icon,
   label,
@@ -342,7 +375,7 @@ function ProductNavItem({
     <button
       type="button"
       className={cn(
-        "group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium transition lg:w-10 lg:justify-center lg:px-0 lg:group-hover/sidebar:w-full lg:group-hover/sidebar:justify-start lg:group-hover/sidebar:px-3",
+        "group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-[13px] font-medium transition lg:w-10 lg:justify-center lg:px-0 lg:group-hover/sidebar:w-full lg:group-hover/sidebar:justify-start lg:group-hover/sidebar:px-3",
         active ? "bg-white/[0.08] text-white" : "text-white/55 hover:bg-white/[0.05] hover:text-white/82",
       )}
     >
@@ -373,7 +406,7 @@ function SidebarDropdown({
         type="button"
         onClick={onToggle}
         className={cn(
-          "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-white/60 transition hover:bg-white/[0.05] hover:text-white/85",
+          "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-[13px] font-medium text-white/60 transition hover:bg-white/[0.05] hover:text-white/85",
           "lg:w-10 lg:justify-center lg:px-0 lg:group-hover/sidebar:w-full lg:group-hover/sidebar:justify-start lg:group-hover/sidebar:px-3",
           open && "bg-white/[0.06] text-white",
         )}
@@ -381,7 +414,7 @@ function SidebarDropdown({
         <Icon className="h-4 w-4 shrink-0 text-white/48" />
         <span className="lg:hidden lg:group-hover/sidebar:inline">{label}</span>
         {value ? (
-          <span className="ml-auto text-xs font-medium text-white/35 lg:hidden lg:group-hover/sidebar:inline">{value}</span>
+          <span className="ml-auto text-[13px] font-medium text-white/35 lg:hidden lg:group-hover/sidebar:inline">{value}</span>
         ) : null}
         <ChevronDown
           className={cn(
@@ -423,8 +456,8 @@ function ProductSidebar({
               <ShieldCheck className="h-4 w-4 text-white" />
             </span>
             <span className="lg:hidden lg:group-hover/sidebar:block">
-              <span className="block text-lg font-semibold text-white">PromptGuard</span>
-              <span className="block text-xs font-medium text-white/42">Scanner console</span>
+              <span className="block text-[17px] font-semibold text-white">PromptGuard</span>
+              <span className="block text-[11px] font-medium text-white/42">Scanner console</span>
             </span>
           </Link>
         </div>
@@ -449,7 +482,7 @@ function ProductSidebar({
                     type="button"
                     onClick={() => setMode(value as InputMode)}
                     className={cn(
-                      "rounded px-2 py-2 text-xs font-semibold transition",
+                      "rounded px-2 py-1.5 text-[13px] font-medium leading-5 transition",
                       mode === value ? "bg-white text-[#080810]" : "text-white/55 hover:text-white",
                     )}
                   >
@@ -464,26 +497,7 @@ function ProductSidebar({
               open={parametersOpen}
               onToggle={() => setParametersOpen((value) => !value)}
             >
-              <div className="space-y-4">
-                <SliderControl
-                  surface="dark"
-                  label="Privacy"
-                  value={options.privacySensitivity}
-                  onChange={(value) => onOptionChange("privacySensitivity", value)}
-                />
-                <SliderControl
-                  surface="dark"
-                  label="Clarity"
-                  value={options.clarityStrictness}
-                  onChange={(value) => onOptionChange("clarityStrictness", value)}
-                />
-                <SliderControl
-                  surface="dark"
-                  label="Security"
-                  value={options.securityStrictness}
-                  onChange={(value) => onOptionChange("securityStrictness", value)}
-                />
-              </div>
+              <ParameterControls options={options} onOptionChange={onOptionChange} surface="dark" />
             </SidebarDropdown>
             {productNavItems.slice(1).map((item) => (
               <ProductNavItem key={item.label} {...item} />
@@ -680,6 +694,8 @@ export function PromptGuardApp() {
   const [copyStatus, setCopyStatus] = useState("");
   const [aiStatus, setAiStatus] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
+  const [headerSettingsOpen, setHeaderSettingsOpen] = useState(false);
+  const headerSettingsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -726,6 +742,20 @@ export function PromptGuardApp() {
       }),
     );
   }, [prompt, mode, options]);
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!headerSettingsRef.current?.contains(event.target as Node)) {
+        setHeaderSettingsOpen(false);
+      }
+    }
+
+    if (headerSettingsOpen) {
+      window.addEventListener("mousedown", handlePointerDown);
+    }
+
+    return () => window.removeEventListener("mousedown", handlePointerDown);
+  }, [headerSettingsOpen]);
 
   const normalized = useMemo(() => normalizePromptInput(prompt, mode), [prompt, mode]);
   const normalizedText = normalized.ok ? normalized.text : prompt;
@@ -818,18 +848,28 @@ export function PromptGuardApp() {
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-20 flex min-h-14 items-center justify-between gap-3 border-b border-black/10 bg-[#f6f6f4]/95 px-5 py-3 backdrop-blur sm:px-8 lg:px-10">
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase text-slate-500">Live product</p>
               <h1 className="text-xl font-semibold text-slate-950">Prompt scanner</h1>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div ref={headerSettingsRef} className="relative flex shrink-0 items-center gap-2">
               {copyStatus ? <span className="hidden text-sm text-slate-500 sm:inline">{copyStatus}</span> : null}
-              <Badge tone="neutral">{report ? "Report ready" : "Ready"}</Badge>
-              <Link
-                href="/"
-                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              <button
+                type="button"
+                onClick={() => setHeaderSettingsOpen((value) => !value)}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
-                Overview
-              </Link>
+                <Settings className="h-4 w-4" />
+                Settings
+                <ChevronDown className={cn("h-4 w-4 transition", headerSettingsOpen && "rotate-180")} />
+              </button>
+              {headerSettingsOpen ? (
+                <div className="absolute right-0 top-full z-30 mt-2 w-[280px] rounded-md border border-slate-200 bg-white p-4 shadow-lg shadow-slate-200/60">
+                  <div className="mb-4">
+                    <h2 className="text-sm font-semibold text-slate-950">Parameters</h2>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">Adjust scoring sensitivity for this scan.</p>
+                  </div>
+                  <ParameterControls options={options} onOptionChange={updateScoringOption} />
+                </div>
+              ) : null}
             </div>
           </header>
 
@@ -837,7 +877,7 @@ export function PromptGuardApp() {
             <div className="mx-auto w-full max-w-[1520px] px-5 py-7 sm:px-8 lg:px-10">
               <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
                 <div>
-                  <h2 className="text-3xl font-semibold leading-tight text-slate-950 sm:text-4xl">Scan a prompt before it ships.</h2>
+                  <h2 className="text-3xl font-semibold leading-tight text-slate-950 sm:text-4xl">Scan</h2>
                   <p className="mt-2 max-w-2xl text-base leading-7 text-slate-600">
                     Paste a prompt, review structured diagnostics, and copy a safer rewrite.
                   </p>
@@ -859,7 +899,7 @@ export function PromptGuardApp() {
                   <Textarea
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
-                    className="min-h-[380px] shadow-none lg:min-h-[520px]"
+                    className="h-[260px] shadow-none sm:h-[300px] lg:h-[330px]"
                     placeholder={
                       mode === "messages"
                         ? '[{"role":"user","content":"Summarize {{user_input}}"}]'
