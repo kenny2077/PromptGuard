@@ -14,6 +14,11 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 84px;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -246,6 +251,10 @@ pre {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   .pg-page-enter,
   .pg-orbit-core,
   .pg-float-one,
