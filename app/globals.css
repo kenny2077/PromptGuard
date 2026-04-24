@@ -41,6 +41,99 @@ pre {
   scrollbar-width: thin;
 }
 
+.pg-page-enter {
+  animation: pg-page-enter 680ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.pg-reveal {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+  transition:
+    opacity 700ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: 0ms;
+  will-change: opacity, transform;
+}
+
+.pg-reveal-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.pg-delay-1 {
+  animation-delay: 80ms;
+  transition-delay: 80ms;
+}
+
+.pg-delay-2 {
+  animation-delay: 160ms;
+  transition-delay: 160ms;
+}
+
+.pg-delay-3 {
+  animation-delay: 240ms;
+  transition-delay: 240ms;
+}
+
+.pg-delay-4 {
+  animation-delay: 320ms;
+  transition-delay: 320ms;
+}
+
+.pg-interactive-card {
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    border-color 220ms ease,
+    background-color 220ms ease;
+  will-change: transform;
+}
+
+.pg-interactive-card:hover {
+  transform: translate3d(0, -4px, 0);
+  border-color: rgba(9, 9, 18, 0.2);
+  box-shadow:
+    0 18px 42px rgba(9, 9, 18, 0.1),
+    0 0 0 1px rgba(9, 9, 18, 0.04);
+}
+
+.pg-dark-card {
+  transition:
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.pg-dark-card:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.24),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.pg-button-arrow svg {
+  transition: transform 180ms ease;
+}
+
+.pg-button-arrow:hover svg {
+  transform: translate3d(3px, 0, 0);
+}
+
+.pg-orbit-shell:hover .pg-orbit-line {
+  opacity: 1;
+}
+
+.pg-orbit-core {
+  animation: pg-soft-pulse 4.8s ease-in-out infinite;
+}
+
+.pg-modal-backdrop {
+  animation: pg-backdrop-enter 220ms ease both;
+}
+
+.pg-modal-panel {
+  animation: pg-modal-enter 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .pg-float-one {
   animation: pg-float-one 8s ease-in-out infinite;
 }
@@ -55,6 +148,57 @@ pre {
 
 .pg-float-four {
   animation: pg-float-four 8.5s ease-in-out infinite;
+}
+
+@keyframes pg-page-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+    filter: blur(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    filter: blur(0);
+  }
+}
+
+@keyframes pg-soft-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 24px 60px rgba(9, 9, 18, 0.18),
+      0 0 0 0 rgba(9, 9, 18, 0.12);
+  }
+
+  50% {
+    box-shadow:
+      0 28px 70px rgba(9, 9, 18, 0.24),
+      0 0 0 10px rgba(9, 9, 18, 0.035);
+  }
+}
+
+@keyframes pg-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pg-modal-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
 }
 
 @keyframes pg-float-one {
@@ -102,10 +246,31 @@ pre {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .pg-page-enter,
+  .pg-orbit-core,
   .pg-float-one,
   .pg-float-two,
   .pg-float-three,
-  .pg-float-four {
+  .pg-float-four,
+  .pg-modal-backdrop,
+  .pg-modal-panel {
     animation: none;
+  }
+
+  .pg-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .pg-interactive-card,
+  .pg-dark-card,
+  .pg-button-arrow svg {
+    transition: none;
+  }
+
+  .pg-interactive-card:hover,
+  .pg-button-arrow:hover svg {
+    transform: none;
   }
 }

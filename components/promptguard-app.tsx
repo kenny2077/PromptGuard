@@ -175,7 +175,7 @@ function ScanSnapshot({ report }: { report: AnalysisReport }) {
   ];
 
   return (
-    <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+    <section className="pg-interactive-card rounded-md border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-slate-950 dark:text-white">Scan snapshot</h2>
@@ -276,7 +276,7 @@ function ScoreCard({
   icon: ReactNode;
 }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+    <div className="pg-interactive-card rounded-md border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
           {icon}
@@ -511,7 +511,7 @@ function ProductSidebar({
 
 function EmptyReport() {
   return (
-    <div className="flex min-h-[560px] flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-white/70 px-8 text-center dark:border-slate-800 dark:bg-slate-950/50">
+    <div className="pg-interactive-card flex min-h-[560px] flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-white/70 px-8 text-center dark:border-slate-800 dark:bg-slate-950/50">
       <div className="flex h-14 w-14 items-center justify-center rounded-md bg-slate-100 text-slate-950 dark:bg-slate-900 dark:text-white">
         <ShieldCheck className="h-7 w-7" />
       </div>
@@ -655,7 +655,7 @@ function RewritePanel({
         </div>
       </div>
 
-      <pre className="max-h-[360px] overflow-auto rounded-md border border-slate-200 bg-slate-950 p-4 text-sm leading-6 text-slate-100 shadow-sm dark:border-slate-800">
+      <pre className="pg-dark-card max-h-[360px] overflow-auto rounded-md border border-slate-200 bg-slate-950 p-4 text-sm leading-6 text-slate-100 shadow-sm dark:border-slate-800">
         <code>{displayed}</code>
       </pre>
 
@@ -668,7 +668,7 @@ function RewritePanel({
       </div>
 
       {report.changes.length ? (
-        <div className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+        <div className="pg-interactive-card rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
           <h3 className="text-sm font-semibold text-slate-950 dark:text-white">What changed</h3>
           <ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
             {report.changes.map((change) => (
@@ -845,7 +845,7 @@ export function PromptGuardApp() {
           onOptionChange={updateScoringOption}
         />
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="pg-page-enter flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-20 flex min-h-14 items-center justify-between gap-3 border-b border-black/10 bg-[#f6f6f4]/95 px-5 py-3 backdrop-blur sm:px-8 lg:px-10">
             <div className="min-w-0">
               <h1 className="text-xl font-semibold text-slate-950">Prompt scanner</h1>
@@ -885,7 +885,7 @@ export function PromptGuardApp() {
               </div>
 
               <section className="grid gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(420px,1.08fr)]">
-                <section className="min-w-0 rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+                <section className="pg-interactive-card min-w-0 rounded-md border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h3 className="text-lg font-semibold text-slate-950">Prompt input</h3>
@@ -935,7 +935,7 @@ export function PromptGuardApp() {
 
                       <ScanSnapshot report={report} />
 
-                      <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+                      <section className="pg-interactive-card rounded-md border border-slate-200 bg-white p-5 shadow-sm">
                         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <h3 className="text-lg font-semibold text-slate-950">Analysis report</h3>
@@ -956,7 +956,7 @@ export function PromptGuardApp() {
                         <DiagnosticList report={report} />
                       </section>
 
-                      <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+                      <section className="pg-interactive-card rounded-md border border-slate-200 bg-white p-5 shadow-sm">
                         <RewritePanel
                           report={report}
                           original={normalizedText}
