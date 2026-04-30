@@ -123,10 +123,20 @@ function chooseOutputFormat(task: string, diagnostics: Diagnostic[]) {
 }
 
 function extractTask(input: string, diagnostics: Diagnostic[]) {
+  const hasLowInformation = diagnostics.some((diagnostic) => diagnostic.ruleId === "low-information-input");
   const hasMissingTask = diagnostics.some((diagnostic) => diagnostic.ruleId === "missing-task-definition");
+  const hasThinTaskContext = diagnostics.some((diagnostic) => diagnostic.ruleId === "thin-task-context");
+
+  if (hasLowInformation) {
+    return "State the task, provide the source material or subject, and specify the desired output format.";
+  }
 
   if (hasMissingTask) {
     return `Clarify and complete the user's requested task based on the provided input: ${input}`;
+  }
+
+  if (hasThinTaskContext) {
+    return `${input}. Include the exact subject or source material and at least one concrete output requirement.`;
   }
 
   return input;

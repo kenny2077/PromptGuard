@@ -2,15 +2,16 @@ import type {
   AnalysisOptions,
   AnalysisReport,
   PromptFormat,
+  PromptVerdict,
   RiskLevel,
   Severity,
 } from "../../types/analysis";
+import { assessmentToScoreBreakdown, buildPromptAssessment } from "./assessment";
 import { generateDeterministicRewrite } from "../rewrite/deterministic";
 import { decodePromptVariants } from "./decoder";
 import { normalizeForScan } from "./normalize";
 import { parsePrompt } from "./parser";
 import { runRules } from "./rules";
-import { scoreDiagnostics } from "./score";
 
 const DEFAULT_OPTIONS: AnalysisOptions = {
   privacySensitivity: 3,
@@ -38,10 +39,10 @@ function summarize(diagnostics: AnalysisReport["diagnostics"]) {
   };
 }
 
-function riskLevel(summary: ReturnType<typeof summarize>): RiskLevel {
-  if (summary.critical > 0 || summary.errors > 1) return "high-risk";
-  if (summary.errors > 0 || summary.warnings > 0) return "needs-edits";
-  return "ready";
+function riskLevel(verdict: PromptVerdict): RiskLevel {
+  if (verdict === "unsafe") return "high-risk";
+  if (verdict === "strong") return "ready";
+  return "needs-edits";
 }
 
 function fingerprint(input: string, diagnostics: AnalysisReport["diagnostics"]): string {
@@ -69,9 +70,12 @@ export function analyzePrompt(
   const diagnostics = runRules(document, { normalized, decodedVariants });
   const rewrite = generateDeterministicRewrite(prompt, diagnostics);
   const summary = summarize(diagnostics);
+  const assessment = buildPromptAssessment(diagnostics, mergedOptions);
+  const scores = assessmentToScoreBreakdown(assessment);
 
   return {
-    scores: scoreDiagnostics(diagnostics, mergedOptions),
+    scores,
+    assessment,
     diagnostics,
     summary,
     rewrittenPrompt: rewrite.rewrittenPrompt,
@@ -87,12 +91,13 @@ export function analyzePrompt(
       normalized: normalized.changed,
       decodedVariantCount: decodedVariants.length,
       decodedEncodings: decodedVariants.map((variant) => variant.encoding),
-      riskLevel: riskLevel(summary),
+      riskLevel: riskLevel(assessment.verdict),
       fingerprint: fingerprint(document.source, diagnostics),
     },
   };
 }
 
+export { buildPromptAssessment } from "./assessment";
 export { scoreDiagnostics } from "./score";
 export { runRules } from "./rules";
 export { parsePrompt } from "./parser";

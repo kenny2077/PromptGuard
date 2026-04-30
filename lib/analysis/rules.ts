@@ -53,6 +53,8 @@ const ACTION_VERBS = [
   "produce",
 ];
 
+const ACTION_VERB_SET = new Set(ACTION_VERBS);
+
 const OUTPUT_FORMAT_TERMS = [
   "json",
   "table",
@@ -69,6 +71,27 @@ const OUTPUT_FORMAT_TERMS = [
   "schema",
   "checklist",
 ];
+
+const GENERIC_CONTEXT_TOKENS = new Set([
+  "a",
+  "an",
+  "anything",
+  "content",
+  "data",
+  "input",
+  "it",
+  "message",
+  "nothing",
+  "prompt",
+  "something",
+  "task",
+  "text",
+  "that",
+  "the",
+  "them",
+  "thing",
+  "this",
+]);
 
 const VAGUE_PATTERNS = [
   /\bbe helpful\b/gi,
@@ -177,6 +200,10 @@ function hasActionVerb(input: string): boolean {
   return ACTION_VERBS.some((verb) => new RegExp(`\\b${verb}\\b`).test(lower));
 }
 
+function wordTokens(input: string): string[] {
+  return input.match(/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g) ?? [];
+}
+
 function asksForGeneration(input: string): boolean {
   return /\b(?:generate|write|create|summarize|extract|draft|produce|list|convert|rewrite|analyze)\b/i.test(
     input,
@@ -189,7 +216,7 @@ function hasOutputFormat(input: string): boolean {
 }
 
 function wordCount(input: string): number {
-  return input.trim().split(/\s+/).filter(Boolean).length;
+  return wordTokens(input).length;
 }
 
 function findContradictions(input: string): RuleMatch {
@@ -285,21 +312,89 @@ function hasDiagnostic(diagnostics: DiagnosticSeed[], ruleId: string, source?: D
   });
 }
 
-function firstRoleContent(document: PromptDocument): string {
-  return document.roles[0]?.content || document.source;
+function primaryTaskContent(document: PromptDocument): string {
+  const userContent = document.roles.find((role) => role.role === "user" && role.content.trim());
+
+  if (userContent) {
+    return userContent.content;
+  }
+
+  const firstNonAssistant = document.roles.find((role) => role.role !== "assistant" && role.content.trim());
+  return firstNonAssistant?.content || document.roles[0]?.content || document.source;
+}
+
+function meaningfulContextTokens(input: string): string[] {
+  return wordTokens(input)
+    .map((token) => token.toLowerCase())
+    .filter((token) => !ACTION_VERB_SET.has(token) && !GENERIC_CONTEXT_TOKENS.has(token));
+}
+
+function findLowInformationInput(input: string): RuleMatch {
+  const trimmed = input.trim();
+  const tokens = wordTokens(trimmed).map((token) => token.toLowerCase());
+
+  if (!tokens.length || hasActionVerb(trimmed)) {
+    return { evidence: [] };
+  }
+
+  const uniqueTokens = [...new Set(tokens)];
+  const isSingleToken = uniqueTokens.length === 1;
+  const isTinyPrompt = tokens.length <= 2 && trimmed.length <= 24;
+  const isRepeatedTinyPrompt = tokens.length <= 3 && uniqueTokens.length <= 2 && trimmed.length <= 32;
+
+  if (isSingleToken || isTinyPrompt || isRepeatedTinyPrompt) {
+    return { evidence: uniqueTokens.slice(0, 3) };
+  }
+
+  return { evidence: [] };
+}
+
+function findThinTaskContext(input: string): RuleMatch {
+  const trimmed = input.trim();
+
+  if (!trimmed || !hasActionVerb(trimmed)) {
+    return { evidence: [] };
+  }
+
+  const tokens = wordTokens(trimmed);
+  const meaningfulTokens = meaningfulContextTokens(trimmed);
+  const isBareCommand = tokens.length <= 2;
+  const isShortAndGeneric = tokens.length <= 3 && meaningfulTokens.length === 0;
+
+  if (isBareCommand || isShortAndGeneric) {
+    return {
+      evidence: (meaningfulTokens.length ? meaningfulTokens : tokens.map((token) => token.toLowerCase())).slice(0, 3),
+    };
+  }
+
+  return { evidence: [] };
 }
 
 export function runRules(input: string | PromptDocument, scanContext?: Partial<RuleScanContext>): Diagnostic[] {
   const document = typeof input === "string" ? parsePrompt(input) : input;
   const source = document.source;
   const trimmed = source.trim();
+  const taskContent = primaryTaskContent(document);
   const diagnostics: DiagnosticSeed[] = [];
 
   if (!trimmed) {
     return [];
   }
 
-  const vague = collectMatches(source, VAGUE_PATTERNS);
+  const lowInformation = findLowInformationInput(taskContent);
+  if (lowInformation.evidence.length) {
+    diagnostics.push({
+      ruleId: "low-information-input",
+      title: "Low-information input",
+      severity: "error",
+      category: "clarity",
+      message: "The prompt is too minimal or opaque to tell the model what useful work to do.",
+      evidence: lowInformation.evidence,
+      suggestion: "State the task, the subject or source material, and the desired answer format.",
+    });
+  }
+
+  const vague = collectMatches(taskContent, VAGUE_PATTERNS);
   if (vague.evidence.length) {
     diagnostics.push({
       ruleId: "vague-instruction",
@@ -314,7 +409,7 @@ export function runRules(input: string | PromptDocument, scanContext?: Partial<R
     });
   }
 
-  if (asksForGeneration(source) && !hasOutputFormat(source)) {
+  if (asksForGeneration(taskContent) && !hasOutputFormat(source)) {
     diagnostics.push({
       ruleId: "missing-output-format",
       title: "Missing output format",
@@ -326,7 +421,7 @@ export function runRules(input: string | PromptDocument, scanContext?: Partial<R
     });
   }
 
-  if (!hasActionVerb(firstRoleContent(document))) {
+  if (!hasActionVerb(taskContent)) {
     diagnostics.push({
       ruleId: "missing-task-definition",
       title: "Missing task definition",
@@ -335,6 +430,19 @@ export function runRules(input: string | PromptDocument, scanContext?: Partial<R
       message: "The prompt does not contain a clear action verb or goal.",
       evidence: [],
       suggestion: "Start with a direct task such as summarize, extract, compare, rewrite, or analyze.",
+    });
+  }
+
+  const thinTaskContext = findThinTaskContext(taskContent);
+  if (thinTaskContext.evidence.length) {
+    diagnostics.push({
+      ruleId: "thin-task-context",
+      title: "Thin task context",
+      severity: "error",
+      category: "clarity",
+      message: "The prompt names an action, but not enough context to know what should be acted on or how.",
+      evidence: thinTaskContext.evidence,
+      suggestion: "Name the source material or subject and add at least one concrete output requirement.",
     });
   }
 

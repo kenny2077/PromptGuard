@@ -13,6 +13,10 @@ export type DiagnosticSource = "original" | "normalized" | "decoded";
 
 export type RiskLevel = "ready" | "needs-edits" | "high-risk";
 
+export type PromptVerdict = "invalid" | "needs-context" | "unsafe" | "usable" | "strong";
+
+export type ScoreBand = "0-25" | "26-60" | "61-80" | "81-100";
+
 export interface SourceLocation {
   startOffset: number;
   endOffset: number;
@@ -67,6 +71,43 @@ export interface ScoreBreakdown {
   privacy: number;
 }
 
+export type RubricDimensionKey =
+  | "taskClarity"
+  | "contextSufficiency"
+  | "outputSpecification"
+  | "instructionCoherence"
+  | "securityHygiene"
+  | "privacyHygiene";
+
+export interface RubricDimensionScore {
+  label: string;
+  score: number;
+  summary: string;
+  relatedRules: string[];
+}
+
+export interface AssessmentBlocker {
+  ruleId: string;
+  title: string;
+  category: Category;
+  severity: Severity;
+  message: string;
+  suggestion: string;
+  evidence: string[];
+}
+
+export interface PromptAssessment {
+  verdict: PromptVerdict;
+  overallScore: number;
+  readinessScore: number;
+  safetyScore: number;
+  scoreBand: ScoreBand;
+  confidence: number;
+  topBlockers: AssessmentBlocker[];
+  bestNextFix: string | null;
+  dimensions: Record<RubricDimensionKey, RubricDimensionScore>;
+}
+
 export interface RewriteChange {
   kind: string;
   description: string;
@@ -74,6 +115,7 @@ export interface RewriteChange {
 
 export interface AnalysisReport {
   scores: ScoreBreakdown;
+  assessment: PromptAssessment;
   diagnostics: Diagnostic[];
   summary: {
     critical: number;
